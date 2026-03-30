@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Виртуальные окруждения
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Логи
+*.log
+logs/*.log
+
+# Временные файлы
+*.tmp
+*.bak
+*.temp
+
+# Туннели
+tunnel_*.txt
+tunnel_url*.txt
+logs/tunnel_current.log
+
+# Кэш браузера
+.cache/
+
+# Node modules (если будет использоваться)
+node_modules/
+
+# Сжатые файлы
+*.gz
+*.zip
+*.rar
+
+# Тесты и бенчмарки
+logs/benchmark_*.md
+logs/test_*.md
+
+# Секреты
+.env
+.env.local
+*.key
+*.pem
+*.crt
+
+# Конфигурации с чувствительными данными
+config.local.json
+settings.local.json

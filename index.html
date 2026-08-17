@@ -2,1474 +2,349 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ETHER RESONANCE — Trigonometric Organisms (Three.js)</title>
-    <style>
-        /* ============================================
-           HUD STYLES — Technical Aesthetic
-           ============================================ */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { overflow: hidden; background: #000; font-family: 'Segoe UI', monospace; }
-        canvas { display: block; }
-
-        /* Main HUD Panel */
-        #hud {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            color: #0ff;
-            z-index: 100;
-            font-size: 12px;
-            pointer-events: none;
-            text-shadow: 0 0 8px rgba(0, 255, 255, 0.6);
-            background: rgba(0, 10, 20, 0.7);
-            padding: 12px 16px;
-            border-radius: 6px;
-            border: 1px solid rgba(0, 255, 255, 0.3);
-            backdrop-filter: blur(8px);
-        }
-        #hud h1 {
-            font-size: 16px;
-            margin-bottom: 6px;
-            color: #fff;
-        }
-        #hud .stats {
-            font-size: 10px;
-            opacity: 0.8;
-            line-height: 1.5;
-        }
-
-        /* Controls Panel */
-        #controls {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            color: #fff;
-            z-index: 100;
-            background: rgba(0, 15, 25, 0.9);
-            padding: 14px;
-            border-radius: 8px;
-            border: 1px solid rgba(0, 200, 255, 0.4);
-            min-width: 340px;
-            max-height: 75vh;
-            overflow-y: auto;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 4px 30px rgba(0, 200, 255, 0.2);
-        }
-        #controls h3 {
-            color: #0ff;
-            margin-bottom: 12px;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        /* Layer Config Panel */
-        #layer-config {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            color: #fff;
-            z-index: 100;
-            background: rgba(0, 15, 25, 0.9);
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(100, 255, 150, 0.35);
-            min-width: 150px;
-            backdrop-filter: blur(10px);
-        }
-        #layer-config h4 {
-            font-size: 11px;
-            margin-bottom: 8px;
-            opacity: 0.6;
-            letter-spacing: 1px;
-        }
-
-        /* Formulas Panel */
-        #formulas {
-            position: absolute;
-            bottom: 10px;
-            right: 170px;
-            color: #8af;
-            font-size: 9px;
-            font-family: 'Consolas', monospace;
-            background: rgba(0, 10, 20, 0.85);
-            padding: 10px 14px;
-            border-radius: 6px;
-            border: 1px solid rgba(100, 180, 255, 0.25);
-            line-height: 1.7;
-            max-width: 420px;
-            backdrop-filter: blur(8px);
-        }
-        #formulas .var { color: #6cf; font-weight: bold; }
-        #formulas .func { color: #f8a; }
-
-        /* Rows and Controls */
-        .row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 7px;
-        }
-        .row:last-child { margin-bottom: 0; }
-        .row label {
-            font-size: 11px;
-            min-width: 120px;
-            color: #ccc;
-        }
-        .row input[type="range"] {
-            width: 140px;
-            height: 16px;
-            cursor: pointer;
-            -webkit-appearance: none;
-            background: rgba(255,255,255,0.1);
-            border-radius: 3px;
-        }
-        .row input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #0ff, #0a8);
-            cursor: pointer;
-            box-shadow: 0 0 8px rgba(0, 255, 255, 0.7);
-        }
-        .row input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            cursor: pointer;
-            accent-color: #0ff;
-        }
-        .row select {
-            background: rgba(0, 50, 70, 0.8);
-            border: 1px solid rgba(0, 255, 255, 0.4);
-            color: #fff;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            cursor: pointer;
-        }
-        .row select option { background: #012; color: #fff; }
-
-        /* Buttons */
-        button {
-            background: linear-gradient(135deg, rgba(0, 200, 255, 0.3), rgba(0, 150, 100, 0.3));
-            border: 1px solid rgba(0, 255, 255, 0.5);
-            color: #fff;
-            padding: 7px 12px;
-            margin: 3px;
-            cursor: pointer;
-            font-size: 10px;
-            font-family: inherit;
-            border-radius: 4px;
-            transition: all 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        button:hover {
-            background: linear-gradient(135deg, rgba(0, 255, 255, 0.5), rgba(0, 200, 150, 0.5));
-            border-color: #0ff;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
-            transform: translateY(-1px);
-        }
-
-        /* FPS Counter */
-        #fps {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 15, 25, 0.85);
-            color: #0f8;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            z-index: 50;
-            border: 1px solid rgba(0, 255, 150, 0.3);
-            backdrop-filter: blur(8px);
-        }
-
-        /* Scrollbar */
-        #controls::-webkit-scrollbar { width: 6px; }
-        #controls::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 3px; }
-        #controls::-webkit-scrollbar-thumb { background: rgba(0, 255, 255, 0.4); border-radius: 3px; }
-
-        /* Glow effect */
-        canvas.glow-active {
-            filter: drop-shadow(0 0 25px rgba(0, 255, 255, 0.5))
-                    drop-shadow(0 0 50px rgba(0, 150, 255, 0.35));
-        }
-
-        /* Section dividers */
-        .section {
-            border-top: 1px solid rgba(0, 255, 255, 0.2);
-            padding-top: 10px;
-            margin-top: 10px;
-        }
-        .section-title {
-            font-size: 10px;
-            color: #0af;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.8;
-        }
-
-        /* Export panel */
-        #export-panel {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 15, 25, 0.98);
-            color: #fff;
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid rgba(0, 255, 255, 0.4);
-            z-index: 200;
-            min-width: 500px;
-            max-width: 90vw;
-            max-height: 80vh;
-            overflow: auto;
-            backdrop-filter: blur(15px);
-            display: none;
-        }
-        #export-panel.active { display: block; }
-        #export-panel h3 {
-            color: #0ff;
-            margin-bottom: 12px;
-        }
-        #export-code {
-            background: #001;
-            color: #0f8;
-            padding: 12px;
-            border-radius: 6px;
-            font-family: 'Consolas', monospace;
-            font-size: 10px;
-            white-space: pre-wrap;
-            word-break: break-all;
-            max-height: 400px;
-            overflow: auto;
-            border: 1px solid rgba(0, 255, 150, 0.3);
-        }
-        #export-panel .btn-row {
-            margin-top: 12px;
-            display: flex;
-            gap: 8px;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>ETHER RESONANCE - 3D Particle Swarm</title>
+    <link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
-    <!-- HUD -->
-    <div id="hud">
-        <h1>🧬 ETHER RESONANCE</h1>
+    <!-- Calibration Screen (NEW v2.0) -->
+    <div id="calibration">
+        <h2>💧 NEURAL LINK CALIBRATION</h2>
+        <div class="spinner"></div>
+        <div class="status" style="margin-top: 20px;">CALIBRATING...</div>
+    </div>
+
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="bar">
+            <div class="progress" id="load-progress"></div>
+        </div>
+        <div class="status" id="load-status">INITIALIZING PARTICLES...</div>
+    </div>
+
+    <!-- HUD Toggle Button -->
+    <button id="hud-toggle" title="Toggle HUD (Tab)">☰</button>
+
+    <!-- HUD (скрыт по умолчанию) -->
+    <div id="hud" class="hidden">
+        <h1>🧬 ETHER RESONANCE <span class="author">Alexey S. | @crwnshnss</span></h1>
         <div class="stats">
-            Particles: <span id="particle-count">0</span><br>
-            FPS: <span id="fps-display">0</span><br>
-            Memory: <span id="memory-display">0</span> MB<br>
-            Formula: <span id="formula-name">Original</span>
+            <div class="stat-row">
+                <span class="stat-label">Particles:</span>
+                <span class="stat-value" id="particle-count">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">FPS:</span>
+                <span class="stat-value" id="fps-display">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Form:</span>
+                <span class="stat-value" id="form-name">Sphere</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Camera:</span>
+                <span class="stat-value" id="camera-info">ORBIT</span>
+            </div>
+        </div>
+        <div class="calibration" id="calibration-status" style="display: none;">
+            ⚡ NEURAL LINK: <span id="link-status">OFFLINE</span>
+        </div>
+        <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.06); font-size: 10px; color: rgba(255, 255, 255, 0.4); text-transform: uppercase; letter-spacing: 1.5px;">
+            <div>Created by <span style="color: rgba(255, 255, 255, 0.7); font-weight: 600;">Alexey S.</span></div>
+            <div style="margin-top: 4px;">
+                <a href="https://t.me/crwnshnss" target="_blank" style="color: rgba(0, 255, 255, 0.6); text-decoration: none;">@crwnshnss</a>
+            </div>
         </div>
     </div>
 
-    <!-- FPS Counter -->
-    <div id="fps">FPS: <span id="fps-counter">0</span></div>
+    <!-- Controls Toggle Button -->
+    <button id="controls-toggle" title="Toggle Controls (Tab)">⚙️</button>
 
-    <!-- Controls Panel -->
-    <div id="controls">
-        <h3>⚙️ Simulation Controls</h3>
-        
-        <div class="row">
-            <label>🖱️ Follow Mouse:</label>
-            <input type="checkbox" id="follow">
-        </div>
-        <div class="row">
-            <label>⏱️ Time Speed:</label>
-            <input type="range" id="speed" min="0" max="100" value="30">
-        </div>
-        <div class="row">
-            <label>🔢 Organisms:</label>
-            <input type="range" id="count" min="1" max="9" value="1">
-        </div>
-        <div class="row">
-            <label>📏 Base Size:</label>
-            <input type="range" id="basesize" min="100" max="800" value="600">
-        </div>
-        <div class="row">
-            <label>🧲 Mouse Pull:</label>
-            <input type="range" id="pull" min="0" max="100" value="0">
-        </div>
-        <div class="row">
-            <label>📏 Scale:</label>
-            <input type="range" id="size" min="50" max="200" value="100">
-        </div>
+    <!-- Controls Panel (v2.0, скрыта по умолчанию) -->
+    <div id="controls" class="hidden">
+        <h3>⚙️ SIMULATION CONTROL</h3>
 
+        <!-- Секция 1: SIMULATION -->
         <div class="section">
-            <div class="section-title">🧮 Formula Parameters</div>
-            <div class="row">
-                <label>📐 K (divisor):</label>
-                <input type="range" id="pk" min="2" max="20" value="8">
+            <h4>📊 SIMULATION</h4>
+            <div class="control-row">
+                <label>Particle Count</label>
+                <input type="range" id="particle-count-slider" min="5000" max="100000" step="1000" value="40000">
+                <span class="value" id="particle-count-value">20K</span>
             </div>
-            <div class="row">
-                <label>📐 E (divisor):</label>
-                <input type="range" id="pe" min="5" max="50" value="24">
+            <div class="control-row">
+                <label>Particle Size</label>
+                <input type="range" id="particle-size" min="0.5" max="5" step="0.1" value="0.5">
+                <span class="value" id="particle-size-value">0.5</span>
             </div>
-            <div class="row">
-                <label>📐 Q (offset):</label>
-                <input type="range" id="pq" min="20" max="200" value="90">
+            <div class="control-row">
+                <label>Sim Speed</label>
+                <input type="range" id="sim-speed" min="0.1" max="2.0" step="0.05" value="0.5">
+                <span class="value" id="sim-speed-value">0.5</span>
             </div>
-            <div class="row">
-                <label>📝 Formula:</label>
-                <select id="formula-select">
-                    <option value="0">0: Original</option>
-                    <option value="1">1: Jellyfish</option>
-                    <option value="2">2: Expanded</option>
-                    <option value="3">3: Compact</option>
-                    <option value="4">4: Spiral</option>
-                    <option value="5">5: Bloom</option>
-                    <option value="6">6: Wave</option>
-                    <option value="7">7: Vortex</option>
+            <div class="control-row">
+                <label>🌟 Bloom</label>
+                <input type="checkbox" id="bloom-toggle" checked>
+            </div>
+            <div class="control-row">
+                <label>Glow Intensity</label>
+                <input type="range" id="bloom-intensity" min="0.5" max="3" step="0.1" value="3">
+                <span class="value" id="bloom-intensity-value">3.0</span>
+            </div>
+            <div class="control-row">
+                <label>Trail</label>
+                <input type="checkbox" id="trail-toggle">
+            </div>
+        </div>
+
+        <!-- Секция 2: FORM -->
+        <div class="section">
+            <h4>🔷 FORM</h4>
+            <div class="control-row">
+                <label>DEPTH</label>
+                <input type="range" id="draw-depth" min="0" max="100" step="1" value="0">
+                <span class="value" id="draw-depth-value">0</span>
+            </div>
+            <div class="control-row">
+                <label>SCALE</label>
+                <input type="range" id="draw-scale" min="0.1" max="3" step="0.1" value="1">
+                <span class="value" id="draw-scale-value">1</span>
+            </div>
+            <div class="control-row">
+                <label>ROTATE</label>
+                <input type="range" id="draw-rotate" min="-180" max="180" step="1" value="0">
+                <span class="value" id="draw-rotate-value">0</span>
+            </div>
+            <div class="btn-row">
+                <button id="btn-form-sphere">Sphere</button>
+                <button id="btn-form-cube">Cube</button>
+                <button id="btn-form-helix">Helix</button>
+                <button id="btn-form-donut">Donut</button>
+                <button id="btn-form-ribbon">Ribbon</button>
+                <button id="btn-form-vortex">Vortex</button>
+            </div>
+        </div>
+
+        <!-- Секция 2: 3D FORM -->
+        <div class="section">
+            <h4>🔷 3D FORM</h4>
+            <div class="control-row">
+                <label>Shape</label>
+                <select id="shape-select">
+                    <option value="sphere">🔮 Sphere</option>
+                    <option value="torus">🍩 Torus</option>
+                    <option value="spiral">🌀 Spiral</option>
+                    <option value="cube">📦 Cube</option>
+                    <option value="plane">📄 Plane</option>
+                    <option value="helix">🌀 Helix</option>
+                    <option value="donut">🍩 Donut</option>
+                    <option value="ribbon">🎀 Ribbon</option>
+                    <option value="vortex">🌪️ Vortex</option>
+                    <option value="chaos">🎲 Chaos</option>
                 </select>
             </div>
+            <div class="control-row">
+                <label>Scale</label>
+                <input type="range" id="form-scale" min="50" max="300" step="5" value="150">
+                <span class="value" id="form-scale-value">150</span>
+            </div>
+            <div class="control-row">
+                <label>Rotation</label>
+                <input type="range" id="form-rotation" min="0" max="2" step="0.01" value="0.3">
+                <span class="value" id="form-rotation-value">0.3</span>
+            </div>
+            <div class="control-row">
+                <label>Chaos</label>
+                <input type="range" id="form-chaos" min="0" max="100" step="1" value="0">
+                <span class="value" id="form-chaos-value">0</span>
+            </div>
         </div>
 
+        <!-- Секция 3: COLOR -->
         <div class="section">
-            <div class="section-title">🎨 Visual Effects</div>
-            <div class="row">
-                <label>✨ Particles:</label>
-                <input type="range" id="particles" min="0" max="100" value="60">
-            </div>
-            <div class="row">
-                <label>🎨 Color Mode:</label>
-                <select id="color-select">
+            <h4>🎨 COLOR</h4>
+            <div class="control-row">
+                <label>Mode</label>
+                <select id="color-mode">
                     <option value="rainbow">🌈 Rainbow</option>
                     <option value="hue">🎭 Single Hue</option>
-                    <option value="white">⚪ White</option>
-                    <option value="cyan">🔵 Cyan</option>
                     <option value="plasma">🔥 Plasma</option>
+                    <option value="ocean">🌊 Ocean</option>
+                    <option value="fire">🔥 Fire</option>
+                    <option value="ice" selected>❄️ Ice</option>
+                    <option value="cyan">💠 Cyan</option>
+                    <option value="gold">🏆 Gold</option>
+                    <option value="neon">💡 Neon</option>
+                    <option value="white">⚪ White</option>
                 </select>
             </div>
-            <div class="row">
-                <label>🌟 Glow:</label>
-                <input type="checkbox" id="glow-toggle">
+            <div class="control-row">
+                <label>Hue Offset</label>
+                <input type="range" id="hue-offset" min="0" max="360" step="1" value="0">
+                <span class="value" id="hue-offset-value">0°</span>
+            </div>
+            <div class="control-row">
+                <label>Animation</label>
+                <select id="anim-select">
+                    <option value="static">Static</option>
+                    <option value="scroll">Scroll</option>
+                    <option value="wave">Wave</option>
+                    <option value="pulse">Pulse</option>
+                    <option value="matrix">Matrix</option>
+                </select>
             </div>
         </div>
 
+        <!-- Секция 4: EXPORT -->
         <div class="section">
-            <button onclick="rnd()">🎲 Evolve</button>
-            <button onclick="rst()">⟳ Reset</button>
-            <button onclick="resetRotation()">🔄 Reset Rot</button>
-            <button onclick="showExport()">📤 Export</button>
+            <h4>📤 EXPORT</h4>
+            <div class="control-row">
+                <label>Platform</label>
+                <select id="export-platform">
+                    <option value="vanilla">Vanilla JS</option>
+                    <option value="react">React</option>
+                    <option value="three">Three.js</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>Resolution</label>
+                <select id="export-resolution">
+                    <option value="1080p">1080p (FHD)</option>
+                    <option value="2k">2K (QHD)</option>
+                    <option value="4k">4K (UHD)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label>Format</label>
+                <select id="export-format">
+                    <option value="png">PNG</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="webp">WEBP</option>
+                </select>
+            </div>
+            <div class="btn-row">
+                <button id="btn-download-code" class="primary">⬇️ Download Code</button>
+                <button id="btn-copy">📋 Copy</button>
+            </div>
+            <div class="btn-row" style="margin-top: 16px;">
+                <button id="btn-platform-vanilla">Vanilla JS</button>
+                <button id="btn-platform-react">React</button>
+                <button id="btn-platform-three">Three.js</button>
+            </div>
+            <div class="btn-row">
+                <button id="btn-platform-image">Wallpapers</button>
+                <button id="btn-platform-ply">PLY 3D</button>
+                <button id="btn-platform-glb">GLB</button>
+                <button id="btn-platform-obj">OBJ</button>
+            </div>
         </div>
 
+        <!-- Секция 5: ASPECT RATIO -->
         <div class="section">
-            <div class="section-title">💾 Presets</div>
-            <div class="row">
+            <h4>📐 ASPECT RATIO</h4>
+            <div class="btn-row">
+                <button id="btn-aspect-1-1">1:1</button>
+                <button id="btn-aspect-16-9">16:9</button>
+                <button id="btn-aspect-9-16">9:16</button>
+                <button id="btn-aspect-4-3">4:3</button>
+                <button id="btn-aspect-3-4">3:4</button>
+                <button id="btn-aspect-custom">Custom</button>
+            </div>
+        </div>
+
+        <!-- Секция 6: PRESETS -->
+        <div class="section">
+            <h4>💾 PRESETS</h4>
+            <div class="btn-row">
                 <button onclick="savePreset(1)">💾 Save 1</button>
                 <button onclick="loadPreset(1)">📂 Load 1</button>
             </div>
-            <div class="row">
+            <div class="btn-row">
                 <button onclick="savePreset(2)">💾 Save 2</button>
                 <button onclick="loadPreset(2)">📂 Load 2</button>
             </div>
-            <div class="row">
+            <div class="btn-row">
                 <button onclick="savePreset(3)">💾 Save 3</button>
                 <button onclick="loadPreset(3)">📂 Load 3</button>
             </div>
         </div>
+
+        <!-- Секция 7: CONTROL -->
+        <div class="section">
+            <h4>🎮 CONTROL</h4>
+            <div class="btn-row">
+                <button onclick="randomize()">🎲 Random</button>
+                <button onclick="reset()">⏮ Reset</button>
+            </div>
+            <div class="btn-row">
+                <button onclick="toggleFullscreen()">⛶ Fullscreen</button>
+                <button id="btn-initialize" class="primary">🔮 Initialize</button>
+            </div>
+            <div class="btn-row" style="margin-top: 16px;">
+                <button id="btn-play-pause">▶️ Play/Pause</button>
+                <button id="btn-copy-prompt">📋 Copy Prompt</button>
+            </div>
+            <div class="btn-row">
+                <button id="btn-save-local">💾 + Save Local</button>
+                <button id="btn-publish">📤 Publish</button>
+            </div>
+            <div class="btn-row">
+                <button id="btn-ai-guide">❓ AI Guide</button>
+                <button id="btn-visualize-text">📝 Visualize Text</button>
+            </div>
+        </div>
+
+        <!-- Секция 8: UPLOAD -->
+        <div class="section">
+            <h4>📁 UPLOAD</h4>
+            <div class="btn-row">
+                <button id="btn-upload-image">🖼️ Upload Image</button>
+                <button id="btn-upload-video">🎬 Upload Video</button>
+            </div>
+            <div class="btn-row">
+                <button id="btn-upload-3d">🧊 Upload 3D Model</button>
+                <button id="btn-upload-blueprint">📐 Upload Blueprint</button>
+            </div>
+            <div class="btn-row">
+                <button id="btn-load-cloud">☁️ Load Cloud Shapes</button>
+            </div>
+        </div>
+
+        <!-- Секция 9: BUILD -->
+        <div class="section">
+            <h4>🏗️ BUILD 3D</h4>
+            <div class="btn-row">
+                <button id="btn-build-3d" class="primary">⚡ LIVE UPDATE</button>
+            </div>
+        </div>
     </div>
 
-    <!-- Layer Config -->
-    <div id="layer-config">
-        <h4>LAYERS</h4>
-        <div class="row">
-            <label><input type="checkbox" id="toggle-particles" checked> Particles</label>
-        </div>
-        <div class="row">
-            <label><input type="checkbox" id="toggle-lines"> Lines</label>
-        </div>
-        <div class="row">
-            <label><input type="checkbox" id="toggle-tentacles" checked> Tentacles</label>
-        </div>
-        <div class="row">
-            <label><input type="checkbox" id="toggle-core" checked> Core</label>
-        </div>
+    <!-- Drawing Pad Toggle Button -->
+    <button id="drawing-pad-toggle" title="Toggle Drawing Pad">🎨</button>
+
+    <!-- Drawing Pad (скрыт по умолчанию, COMING SOON) -->
+    <div id="drawing-pad" class="hidden">
+        <button id="btn-pen" disabled>✏️ Pen</button>
+        <button id="btn-eraser" disabled>🧹 Eraser</button>
+        <button id="btn-undo" disabled>↩️ Undo</button>
+        <button id="btn-redo" disabled>↪️ Redo</button>
+        <button id="btn-sym" disabled>🔁 Sym</button>
+        <button id="btn-pulsar" disabled>💫 Pulsar</button>
+        <button id="btn-live-update" class="primary" disabled>⚡ LIVE</button>
+        <button id="btn-open-drawing" disabled>🎨 Open</button>
     </div>
 
-    <!-- Formulas Panel -->
-    <div id="formulas">
-        <div><span class="var">k</span> = x / <span id="fk">8</span> - 12.5</div>
-        <div><span class="var">e</span> = <span class="func">cos</span>(<span class="var">k</span>) + <span class="func">sin</span>(y / <span id="fe">24</span>) + <span class="func">cos</span>(<span class="var">k</span> / 2)</div>
-        <div><span class="var">d</span> = |<span class="var">e</span>|</div>
-        <div><span class="var">q</span> = x / 4 + <span id="fq">90</span> + <span class="var">d</span>·<span class="var">k</span>·(1 + <span class="func">cos</span>(4<span class="var">d</span> - 2t + y / 72))</div>
-        <div><span class="var">c</span> = y·<span class="var">e</span> / 594 - t / 8 + <span class="var">d</span> / 6</div>
-        <div><span class="var">X</span> = <span class="var">q</span> · <span class="func">cos</span>(<span class="var">c</span>) + 200</div>
-        <div><span class="var">Y</span> = (<span class="var">q</span> / 2 + 99 · <span class="func">cos</span>(<span class="var">c</span> / 2)) · <span class="func">sin</span>(<span class="var">c</span>) + 6<span class="var">e</span> + 200</div>
-    </div>
-
-    <!-- Export Panel -->
-    <div id="export-panel">
-        <h3>📤 Export Code</h3>
-        <div class="row" style="margin-bottom: 12px;">
-            <label>Format:</label>
-            <select id="export-format">
-                <option value="vanilla">Vanilla JS + Three.js</option>
-                <option value="react">React Component</option>
-                <option value="module">ES Module</option>
-            </select>
-        </div>
-        <div id="export-code"></div>
-        <div class="btn-row">
-            <button onclick="copyExport()">📋 Copy</button>
-            <button onclick="downloadExport()">💾 Download</button>
-            <button onclick="closeExport()">✕ Close</button>
-        </div>
-    </div>
-
-    <!-- Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        // ============================================
-        // THREE.JS SETUP
-        // ============================================
-        let scene, camera, renderer;
-        let particleSystem, lineSystem, tentacleSystem, coreSystem;
-        let particlesGeometry, particlesMaterial;
-        let currentOrgIndex = 0; // Для поддержки нескольких организмов
-        let showGlow = false;
-
-        // Particle data with Float32Array (optimized)
-        const MAX_PARTICLES = 100000;
-        let particleCount = 0;
-        let positions, colors, sizes;
-        let positionsArray, colorsArray;
-
-        // Zero GC: переиспользуемый массив для точек (вместо создания нового каждый кадр)
-        const reusablePoints = new Array(MAX_PARTICLES);
-        for (let i = 0; i < MAX_PARTICLES; i++) {
-            reusablePoints[i] = { x: 0, y: 0, intensity: 1, hueOffset: 0 };
+    <!-- Three.js + Post Processing -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
         }
-
-        // ============================================
-        // GLOBAL STATE
-        // ============================================
-        let t = 0;
-        let ts = 0.3;
-        let follow = false;
-        let dragging = false;
-        let rotating = false;
-        let dragOrgIndex = -1;
-        let rotateOrgIndex = -1;
-        let lastMouseX = 0, lastMouseY = 0;
-        let orgCount = 1;
-        let orgSize = 150;
-        let particleDensity = 60;
-        let mouseAttraction = 0;
-        let baseSize = 600;
-        let P = { k: 8, e: 24, q: 90 };
-        let organisms = [];
-        let sidePoints = [];
-        const GX = 100, GY = 70, STEP = 2;
-        let tentacleData = [];
-        const TENT_COUNT = 30, TENT_LEN = 120, TENT_STEP = 6;
-
-        // Layer flags
-        let showParticles = true;
-        let showLines = false;
-        let showTentacles = true;
-        let showCore = true;
-        let particleColorMode = 'rainbow';
-        let hueOffset = 0;
-
-        // FPS tracking
-        let frameCount = 0;
-        let lastFpsTime = performance.now();
-        let fps = 0;
-
-        // Performance monitoring (бенчмарк)
-        let gcCheckEnabled = performance.memory !== undefined;
-        let lastGcCheck = 0;
-        let usedJSHeapSize = 0;
-
-        // Formula variants
-        let formulaVariant = 0;
-        const FORMULA_NAMES = ['Original', 'Jellyfish', 'Expanded', 'Compact', 'Spiral', 'Bloom', 'Wave', 'Vortex'];
-
-        // ============================================
-        // FORMULA CALCULATIONS (7 variants preserved)
-        // ============================================
-        function calcOriginal(x, y, time, scale) {
-            let k = x / P.k - 12.5;
-            let e = Math.cos(k) + Math.sin(y / P.e) + Math.cos(k / 2);
-            let d = Math.abs(e);
-            let q = x / 4 + P.q + d * k * (1 + Math.cos(4 * d - 2 * time + y / 72));
-            let c = y * e / 594 - time / 8 + d / 6;
-            return {
-                X: (q * Math.cos(c) + 200) * scale,
-                Y: ((q / 2 + 99 * Math.cos(c / 2)) * Math.sin(c) + 6 * e + 200) * scale
-            };
-        }
-
-        function calcVariant1(x, y, time, scale) {
-            let k = x / P.k - 12.5;
-            let e = Math.cos(k * 0.8) + Math.sin(y / P.e) + Math.cos(k / 2);
-            let d = Math.abs(e);
-            let pulse = Math.sin(time * 0.5) * 0.2 + 1;
-            let q = x / 4 + P.q * pulse + d * k * (1 + Math.cos(3 * d - 2 * time + y / 60));
-            let c = y * e / 550 - time / 7 + d / 5;
-            return {
-                X: (q * Math.cos(c) + 220) * scale,
-                Y: ((q / 2 + 100 * Math.cos(c / 2)) * Math.sin(c) + 7 * e + 220) * scale
-            };
-        }
-
-        function calcVariant2(x, y, time, scale) {
-            let k = x / (P.k * 0.8) - 10;
-            let e = Math.cos(k) + Math.sin(y / (P.e * 1.2)) + Math.cos(k / 2.5);
-            let d = Math.abs(e);
-            let q = x / 3.5 + P.q * 1.3 + d * k * (1 + Math.cos(3.5 * d - 2.5 * time + y / 65));
-            let c = y * e / 520 - time / 6 + d / 4.5;
-            return {
-                X: (q * Math.cos(c) + 280) * scale,
-                Y: ((q / 2 + 130 * Math.cos(c / 2)) * Math.sin(c) + 9 * e + 280) * scale
-            };
-        }
-
-        function calcVariant3(x, y, time, scale) {
-            let k = x / (P.k * 1.3) - 18;
-            let e = Math.cos(k * 1.3) + Math.sin(y / (P.e * 0.7)) + Math.cos(k / 2.8);
-            let d = Math.abs(e);
-            let q = x / 5.5 + P.q * 0.6 + d * k * (1 + Math.cos(5.5 * d - 3.5 * time + y / 100));
-            let c = y * e / 680 - time / 11 + d / 9;
-            return {
-                X: (q * Math.cos(c) + 160) * scale,
-                Y: ((q / 2 + 70 * Math.cos(c / 2)) * Math.sin(c) + 4.5 * e + 160) * scale
-            };
-        }
-
-        function calcVariant4(x, y, time, scale) {
-            let k = x / P.k - 12.5;
-            let e = Math.cos(k) + Math.sin(y / P.e) + Math.cos(k / 2);
-            let d = Math.abs(e);
-            let spiral = Math.sin(time * 0.4) * 0.35 + 1;
-            let twist = Math.cos(k / 3) * Math.sin(time * 0.3);
-            let q = x / 4 + P.q + d * k * (1 + Math.cos(4 * d - 2 * time + y / 72)) * spiral;
-            let c = y * e / 594 - time / 8 + d / 6 + twist;
-            return {
-                X: (q * Math.cos(c) + 200) * scale,
-                Y: ((q / 2 + 99 * Math.cos(c / 2)) * Math.sin(c) + 6 * e + 200) * scale
-            };
-        }
-
-        function calcVariant5(x, y, time, scale) {
-            let k = x / P.k - 12.5;
-            let e = Math.cos(k * 0.9) + Math.sin(y / P.e) + Math.cos(k / 2.2);
-            let d = Math.abs(e);
-            let bloom = Math.sin(time * 0.6) * 0.25 + 1;
-            let petals = Math.cos(k * 3) * bloom;
-            let q = x / 4 + P.q * bloom + d * k * (1 + Math.cos(4 * d - 2 * time + y / 72)) + petals * 20;
-            let c = y * e / 580 - time / 7.5 + d / 5.5;
-            return {
-                X: (q * Math.cos(c) + 210) * scale,
-                Y: ((q / 2 + 105 * Math.cos(c / 2)) * Math.sin(c) + 6.5 * e + 210) * scale
-            };
-        }
-
-        function calcVariant6(x, y, time, scale) {
-            let k = x / P.k - 11;
-            let e = Math.cos(k * 0.85) + Math.sin(y / (P.e * 1.1)) + Math.cos(k / 1.9);
-            let d = Math.abs(e);
-            let wave = Math.sin(time * 0.35) * 0.3;
-            let flow = Math.sin(y / 50 + time * 0.2) * 15;
-            let q = x / 4.2 + P.q + d * k * (1 + Math.cos(3.8 * d - 1.8 * time + y / 68)) + flow;
-            let c = y * e / 570 - time / 7.2 + d / 5.2 + wave;
-            return {
-                X: (q * Math.cos(c) + 205) * scale,
-                Y: ((q / 2 + 102 * Math.cos(c / 2)) * Math.sin(c) + 6.2 * e + 205) * scale
-            };
-        }
-
-        function calcVariant7(x, y, time, scale) {
-            let k = x / P.k - 12.5;
-            let e = Math.cos(k * 1.1) + Math.sin(y / (P.e * 0.9)) + Math.cos(k / 2.1);
-            let d = Math.abs(e);
-            let vortex = Math.sin(time * 0.7) * 0.4 + 1;
-            let swirl = Math.sin(k / 2 + time * 0.5) * Math.cos(y / 80) * 25;
-            let q = x / 3.8 + P.q * vortex + d * k * (1 + Math.cos(4.2 * d - 2.3 * time + y / 70)) + swirl;
-            let c = y * e / 560 - time / 6.8 + d / 4.8;
-            return {
-                X: (q * Math.cos(c) + 215) * scale,
-                Y: ((q / 2 + 108 * Math.cos(c / 2)) * Math.sin(c) + 6.8 * e + 215) * scale
-            };
-        }
-
-        function calc(x, y, time, scale) {
-            switch (formulaVariant) {
-                case 1: return calcVariant1(x, y, time, scale);
-                case 2: return calcVariant2(x, y, time, scale);
-                case 3: return calcVariant3(x, y, time, scale);
-                case 4: return calcVariant4(x, y, time, scale);
-                case 5: return calcVariant5(x, y, time, scale);
-                case 6: return calcVariant6(x, y, time, scale);
-                case 7: return calcVariant7(x, y, time, scale);
-                default: return calcOriginal(x, y, time, scale);
-            }
-        }
-
-        // ============================================
-        // THREE.JS INITIALIZATION
-        // ============================================
-        function initThree() {
-            scene = new THREE.Scene();
-
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-            camera.position.z = 500;
-
-            renderer = new THREE.WebGLRenderer({ 
-                antialias: true, 
-                alpha: true,
-                powerPreference: "high-performance"
-            });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
-            document.body.appendChild(renderer.domElement);
-
-            // Initialize particle buffers (Float32Array optimization)
-            initParticleBuffers();
-
-            // Create particle system
-            createParticleSystem();
-
-            // Window resize handler
-            window.addEventListener('resize', onWindowResize, false);
-        }
-
-        function initParticleBuffers() {
-            positions = new Float32Array(MAX_PARTICLES * 3);
-            colors = new Float32Array(MAX_PARTICLES * 3);
-            sizes = new Float32Array(MAX_PARTICLES);
-        }
-
-        // ============================================
-        // ЗАГРУЗКА ШЕЙДЕРОВ
-        // ============================================
-        async function loadShader(url) {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Failed to load shader: ${url}`);
-            return await response.text();
-        }
-
-        async function initShaders() {
-            try {
-                const vertexShaderSrc = await loadShader('shaders/particleVertex.glsl');
-                const fragmentShaderSrc = await loadShader('shaders/particleFragment.glsl');
-
-                // Создаём uniforms для шейдеров
-                shaderUniforms = {
-                    uTime: { value: 0 },
-                    uPixelRatio: { value: renderer.getPixelRatio() },
-                    uPk: { value: P.k },
-                    uPe: { value: P.e },
-                    uPq: { value: P.q },
-                    uFormulaVariant: { value: 0 },
-                    uScale: { value: orgSize / 100 },
-                    uBaseSize: { value: baseSize },
-                    uOpacity: { value: 0.9 },
-                    uOrgPosition: { value: new Float32Array([0, 0]) }
-                };
-
-                // Создаём материал с кастомными шейдерами
-                particlesMaterial = new THREE.ShaderMaterial({
-                    vertexShader: vertexShaderSrc,
-                    fragmentShader: fragmentShaderSrc,
-                    uniforms: shaderUniforms,
-                    transparent: true,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false,
-                    vertexColors: true
-                });
-
-                createParticleSystem();
-                console.log('✅ GLSL shaders loaded successfully');
-            } catch (error) {
-                console.error('❌ Error loading shaders:', error);
-                // Fallback to standard material if shaders fail
-                createParticleSystemFallback();
-            }
-        }
-
-        function createParticleSystemFallback() {
-            particlesMaterial = new THREE.PointsMaterial({
-                size: 2,
-                vertexColors: true,
-                transparent: true,
-                opacity: 0.9,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                sizeAttenuation: false
-            });
-            createParticleSystem();
-            console.log('⚠️ Using fallback PointsMaterial');
-        }
-
-        function createParticleSystem() {
-            particlesGeometry = new THREE.BufferGeometry();
-            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            particlesGeometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-
-            particlesMaterial = new THREE.PointsMaterial({
-                size: 2,
-                vertexColors: true,
-                transparent: true,
-                opacity: 0.9,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                sizeAttenuation: false
-            });
-
-            particleSystem = new THREE.Points(particlesGeometry, particlesMaterial);
-            scene.add(particleSystem);
-        }
-
-        function updateParticleBuffers(points, colorMode, count) {
-            particleCount = Math.min(count || points.length, MAX_PARTICLES);
-
-            const posAttr = particlesGeometry.attributes.position;
-            const colAttr = particlesGeometry.attributes.color;
-
-            // Zero GC: используем локальные переменные вместо создания новых объектов
-            let r, g, b;
-
-            for (let i = 0; i < particleCount; i++) {
-                const p = points[i];
-                posAttr.setXYZ(i, p.x, p.y, 0);
-
-                // Color calculation
-                const alpha = p.alpha || 1;
-
-                if (colorMode === 'rainbow') {
-                    const hue = (hueOffset + p.hueOffset) % 360;
-                    const rgb = hslToRgb(hue / 360, 0.8, 0.6);
-                    r = rgb[0]; g = rgb[1]; b = rgb[2];
-                } else if (colorMode === 'hue') {
-                    const hue = (hueOffset + p.x * 0.05) % 360;
-                    const rgb = hslToRgb(hue / 360, 0.7, 0.7);
-                    r = rgb[0]; g = rgb[1]; b = rgb[2];
-                } else if (colorMode === 'cyan') {
-                    r = 0; g = 0.8 + p.intensity * 0.2; b = 1;
-                } else if (colorMode === 'plasma') {
-                    const intensity = p.intensity || 0.5;
-                    r = intensity; g = 0.3 + intensity * 0.5; b = 0.1 + intensity * 0.3;
-                } else {
-                    // White
-                    const v = 0.6 + p.intensity * 0.4;
-                    r = v; g = v; b = v;
-                }
-
-                colAttr.setXYZ(i, r, g, b);
-            }
-
-            posAttr.needsUpdate = true;
-            colAttr.needsUpdate = true;
-            particlesGeometry.setDrawRange(0, particleCount);
-        }
-
-        // ============================================
-        // UTILITIES
-        // ============================================
-        // Zero GC: выносим hue2rgb наружу чтобы не создавать closure каждый вызов
-        function hue2rgb(p, q, t) {
-            if (t < 0) t += 1;
-            if (t > 1) t -= 1;
-            if (t < 1/6) return p + (q - p) * 6 * t;
-            if (t < 1/2) return q;
-            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-            return p;
-        }
-
-        function hslToRgb(h, s, l) {
-            let r, g, b;
-            if (s === 0) {
-                r = g = b = l;
-            } else {
-                // Zero GC: используем локальные переменные вместо closure
-                const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-                const p = 2 * l - q;
-                r = hue2rgb(p, q, h + 1/3);
-                g = hue2rgb(p, q, h);
-                b = hue2rgb(p, q, h - 1/3);
-            }
-            return [r, g, b];
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            
-            // Обновляем размер composer для post-processing
-            if (composer) {
-                composer.setSize(window.innerWidth, window.innerHeight);
-            }
-        }
-
-        // ============================================
-        // INITIALIZATION
-        // ============================================
-        function initOrganisms() {
-            organisms = [];
-            let positions = [
-                { x: 0.5, y: 0.5 }, { x: 0.25, y: 0.5 }, { x: 0.75, y: 0.5 },
-                { x: 0.5, y: 0.25 }, { x: 0.5, y: 0.75 }, { x: 0.25, y: 0.25 },
-                { x: 0.75, y: 0.25 }, { x: 0.25, y: 0.75 }, { x: 0.75, y: 0.75 }
-            ];
-            for (let i = 0; i < orgCount; i++) {
-                let pos = positions[i % positions.length];
-                organisms.push({
-                    x: pos.x * window.innerWidth,
-                    y: pos.y * window.innerHeight,
-                    phase: i * 0.5,
-                    scale: 0.8 + Math.random() * 0.4,
-                    rotation: 0
-                });
-            }
-        }
-
-        async function setup() {
-            initThree();
-
-            // Инициализация шейдеров отключена — используем стандартный PointsMaterial
-            // Если нужны кастомные шейдеры, раскомментируйте:
-            // await initShaders();
-
-            // Generate grid points
-            for (let x = -GX * STEP; x <= GX * STEP; x += STEP) {
-                for (let y = 0; y <= GY * STEP; y += STEP) {
-                    sidePoints.push({ x, y });
-                }
-            }
-
-            // Generate tentacle data
-            for (let i = 0; i < TENT_COUNT; i++) {
-                let angle = (i / TENT_COUNT) * Math.PI * 2;
-                for (let len = 0; len <= TENT_LEN; len += TENT_STEP) {
-                    tentacleData.push({ angle, len });
-                }
-            }
-
-            initOrganisms();
-
-            // Event listeners for controls
-            document.getElementById('follow').addEventListener('change', e => follow = e.target.checked);
-            document.getElementById('speed').addEventListener('input', e => ts = e.target.value / 100);
-            document.getElementById('count').addEventListener('input', e => { orgCount = parseInt(e.target.value); initOrganisms(); });
-            document.getElementById('basesize').addEventListener('input', e => baseSize = parseInt(e.target.value));
-            document.getElementById('pull').addEventListener('input', e => mouseAttraction = e.target.value / 100);
-            document.getElementById('size').addEventListener('input', e => orgSize = parseInt(e.target.value));
-            document.getElementById('particles').addEventListener('input', e => particleDensity = parseInt(e.target.value));
-            // Исправление нелинейности ползунков — экспоненциальная шкала
-            // P.k: диапазон 2-20, кривая x^0.7 для большей чувствительности в начале
-            document.getElementById('pk').addEventListener('input', e => {
-                const sliderValue = parseFloat(e.target.value);
-                const normalized = sliderValue / 100;
-                P.k = Math.pow(normalized, 0.7) * (20 - 2) + 2;
-                document.getElementById('fk').textContent = P.k.toFixed(1);
-            });
-            
-            // P.e: диапазон 5-50, кривая x^0.75
-            document.getElementById('pe').addEventListener('input', e => {
-                const sliderValue = parseFloat(e.target.value);
-                const normalized = sliderValue / 100;
-                P.e = Math.pow(normalized, 0.75) * (50 - 5) + 5;
-                document.getElementById('fe').textContent = P.e.toFixed(1);
-            });
-            
-            // P.q: линейная шкала (не в знаменателе)
-            document.getElementById('pq').addEventListener('input', e => {
-                P.q = parseFloat(e.target.value);
-                document.getElementById('fq').textContent = P.q.toFixed(1);
-            });
-            document.getElementById('formula-select').addEventListener('change', e => { formulaVariant = parseInt(e.target.value); document.getElementById('formula-name').textContent = FORMULA_NAMES[formulaVariant]; });
-            document.getElementById('color-select').addEventListener('change', e => particleColorMode = e.target.value);
-
-            document.getElementById('toggle-particles').addEventListener('change', e => showParticles = e.target.checked);
-            document.getElementById('toggle-lines').addEventListener('change', e => showLines = e.target.checked);
-            document.getElementById('toggle-tentacles').addEventListener('change', e => showTentacles = e.target.checked);
-            document.getElementById('toggle-core').addEventListener('change', e => showCore = e.target.checked);
-
-            // Mouse events
-            renderer.domElement.addEventListener('mousedown', onMouseDown);
-            renderer.domElement.addEventListener('mousemove', onMouseMove);
-            renderer.domElement.addEventListener('mouseup', onMouseUp);
-            renderer.domElement.addEventListener('contextmenu', e => e.preventDefault());
-
-            // Keyboard events
-            document.addEventListener('keydown', e => {
-                // Горячие клавиши для слоёв (1-4)
-                if (e.key === '1') {
-                    showParticles = !showParticles;
-                    document.getElementById('toggle-particles').checked = showParticles;
-                }
-                if (e.key === '2') {
-                    showLines = !showLines;
-                    document.getElementById('toggle-lines').checked = showLines;
-                }
-                if (e.key === '3') {
-                    showTentacles = !showTentacles;
-                    document.getElementById('toggle-tentacles').checked = showTentacles;
-                }
-                if (e.key === '4') {
-                    showCore = !showCore;
-                    document.getElementById('toggle-core').checked = showCore;
-                }
-
-                // Fullscreen (F)
-                if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А') {
-                    toggleFullscreen();
-                }
-
-                // Reset rotation (R)
-                if (e.key === 'r' || e.key === 'R' || e.key === 'к' || e.key === 'К') {
-                    resetRotation();
-                }
-
-                // Случайная формула (Space)
-                if (e.keyCode === 32) {
-                    e.preventDefault();
-                    formulaVariant = Math.floor(Math.random() * 8);
-                    document.getElementById('formula-select').value = formulaVariant;
-                    document.getElementById('formula-name').textContent = FORMULA_NAMES[formulaVariant];
-                }
-            });
-
-            // Update HUD
-            document.getElementById('formula-name').textContent = FORMULA_NAMES[formulaVariant];
-            
-            // Start animation loop
-            animate();
-        }
-
-        // ============================================
-        // MOUSE HANDLING
-        // ============================================
-        function getMousePos(event) {
-            const rect = renderer.domElement.getBoundingClientRect();
-            return {
-                x: event.clientX - rect.left,
-                y: event.clientY - rect.top
-            };
-        }
-
-        function onMouseDown(event) {
-            const mouse = getMousePos(event);
-            let minDist = 100;
-            dragOrgIndex = -1;
-
-            for (let i = 0; i < organisms.length; i++) {
-                let d = Math.sqrt(Math.pow(mouse.x - organisms[i].x, 2) + Math.pow(mouse.y - organisms[i].y, 2));
-                if (d < minDist) { minDist = d; dragOrgIndex = i; }
-            }
-
-            if (event.button === 0 && dragOrgIndex >= 0) {
-                dragging = true;
-                follow = false;
-                document.getElementById('follow').checked = false;
-            } else if (event.button === 2 && dragOrgIndex >= 0) {
-                rotating = true;
-                rotateOrgIndex = dragOrgIndex;
-                lastMouseX = mouse.x;
-                lastMouseY = mouse.y;
-            }
-        }
-
-        function onMouseMove(event) {
-            const mouse = getMousePos(event);
-
-            if (dragging && dragOrgIndex >= 0) {
-                organisms[dragOrgIndex].x = mouse.x;
-                organisms[dragOrgIndex].y = mouse.y;
-            }
-
-            if (rotating && rotateOrgIndex >= 0) {
-                organisms[rotateOrgIndex].rotation += (mouse.x - lastMouseX + mouse.y - lastMouseY) * 0.02;
-                lastMouseX = mouse.x;
-                lastMouseY = mouse.y;
-            }
-        }
-
-        function onMouseUp() {
-            dragging = false;
-            rotating = false;
-            dragOrgIndex = -1;
-            rotateOrgIndex = -1;
-        }
-
-        // ============================================
-        // RENDER LOOP
-        // ============================================
-        function animate() {
-            requestAnimationFrame(animate);
-
-            // FPS calculation
-            frameCount++;
-            const now = performance.now();
-            if (now - lastFpsTime >= 1000) {
-                fps = frameCount;
-                frameCount = 0;
-                lastFpsTime = now;
-                document.getElementById('fps-counter').textContent = fps;
-                document.getElementById('fps-display').textContent = fps;
-
-                // Memory monitoring (раз в секунду)
-                if (gcCheckEnabled) {
-                    usedJSHeapSize = performance.memory.usedJSHeapSize;
-                    const memoryMB = (usedJSHeapSize / 1048576).toFixed(2);
-                    document.getElementById('memory-display').textContent = memoryMB;
-
-                    // Логирование если память растёт (potential leak)
-                    if (parseFloat(memoryMB) > 100) {
-                        console.warn(`⚠️ High memory usage: ${memoryMB} MB`);
-                    }
-                }
-            }
-
-            // Update time
-            t += ts;
-            hueOffset = (hueOffset + 0.3) % 360;
-
-            // Update organisms
-            if (follow && organisms.length > 0) {
-                organisms[0].x = lastMouseX || window.innerWidth / 2;
-                organisms[0].y = lastMouseY || window.innerHeight / 2;
-            }
-
-            if (mouseAttraction > 0 && organisms.length > 0 && !dragging) {
-                for (let org of organisms) {
-                    org.x += (lastMouseX - org.x) * mouseAttraction * 0.05;
-                    org.y += (lastMouseY - org.y) * mouseAttraction * 0.05;
-                }
-            }
-
-            // Render particles if enabled
-            if (showParticles) {
-                const step = Math.pow(100, 1 - Math.pow(particleDensity / 100, 0.8));
-                let pointIndex = 0;
-
-                // Zero GC: используем переиспользуемый массив вместо создания нового
-                for (let orgIndex = 0; orgIndex < organisms.length; orgIndex++) {
-                    const org = organisms[orgIndex];
-                    const scale = (orgSize / 100) * org.scale * (baseSize / 300);
-
-                    for (let i = 0; i < sidePoints.length; i += Math.ceil(step)) {
-                        if (pointIndex >= MAX_PARTICLES) break;
-
-                        const p = sidePoints[i];
-                        const pt = calc(p.x * scale, p.y * scale, t + org.phase, 1);
-
-                        const intensity = 1 - (p.y / (GY * STEP));
-                        const hueOffsetVal = (p.x / (GX * STEP)) * 120 + (p.y / (GY * STEP)) * 120;
-
-                        // Переиспользуем объект из reusablePoints
-                        const point = reusablePoints[pointIndex];
-                        point.x = org.x + pt.X - 200 * scale;
-                        point.y = org.y + pt.Y - 200 * scale;
-                        point.intensity = intensity;
-                        point.hueOffset = hueOffsetVal;
-                        pointIndex++;
-
-                        // Mirror
-                        if (pointIndex < MAX_PARTICLES) {
-                            const mirrorPoint = reusablePoints[pointIndex];
-                            mirrorPoint.x = org.x + pt.X - 200 * scale;
-                            mirrorPoint.y = org.y - (pt.Y - 200 * scale);
-                            mirrorPoint.intensity = intensity * 0.8;
-                            mirrorPoint.hueOffset = hueOffsetVal + 180;
-                            pointIndex++;
-                        }
-                    }
-                }
-
-                updateParticleBuffers(reusablePoints, particleColorMode, pointIndex);
-                document.getElementById('particle-count').textContent = pointIndex;
-            } else {
-                particleCount = 0;
-                particlesGeometry.setDrawRange(0, 0);
-                document.getElementById('particle-count').textContent = '0';
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        // ============================================
-        // CONTROL FUNCTIONS
-        // ============================================
-        function rnd() {
-            // Генерация случайных значений с учётом экспоненциальной шкалы
-            const kRandom = Math.pow(Math.random(), 0.7) * (20 - 2) + 2;
-            const eRandom = Math.pow(Math.random(), 0.75) * (50 - 5) + 5;
-            const qRandom = 20 + Math.random() * 180;
-            
-            P = { k: kRandom, e: eRandom, q: qRandom };
-            
-            // Обновление UI
-            document.getElementById('pk').value = Math.round(kRandom);
-            document.getElementById('pe').value = Math.round(eRandom);
-            document.getElementById('pq').value = Math.round(qRandom);
-            document.getElementById('fk').textContent = P.k.toFixed(1);
-            document.getElementById('fe').textContent = P.e.toFixed(1);
-            document.getElementById('fq').textContent = P.q.toFixed(1);
-        }
-
-        function rst() {
-            P = { k: 8, e: 24, q: 90 };
-            document.getElementById('pk').value = 8;
-            document.getElementById('pe').value = 24;
-            document.getElementById('pq').value = 90;
-            document.getElementById('fk').textContent = P.k.toFixed(1);
-            document.getElementById('fe').textContent = P.e.toFixed(1);
-            document.getElementById('fq').textContent = P.q.toFixed(1);
-        }
-
-        function resetRotation() {
-            for (let org of organisms) {
-                org.rotation = 0;
-            }
-        }
-
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
-                });
-            } else {
-                document.exitFullscreen();
-            }
-        }
-
-        // ============================================
-        // PRESETS (LOCALSTORAGE)
-        // ============================================
-        function savePreset(slot) {
-            const preset = {
-                P: { k: P.k, e: P.e, q: P.q },
-                formulaVariant: formulaVariant,
-                particleColorMode: particleColorMode,
-                hueOffset: hueOffset,
-                showGlow: showGlow,
-                baseSize: baseSize,
-                orgCount: orgCount,
-                particleDensity: particleDensity,
-                orgSize: orgSize,
-                mouseAttraction: mouseAttraction,
-                savedAt: new Date().toISOString()
-            };
-            localStorage.setItem(`etherPreset_${slot}`, JSON.stringify(preset));
-            console.log(`✅ Preset ${slot} saved!`);
-            
-            // Визуальная обратная связь
-            const btn = event.target;
-            const originalText = btn.textContent;
-            btn.textContent = '✓ Saved!';
-            btn.style.background = 'rgba(0, 255, 100, 0.4)';
-            setTimeout(() => {
-                btn.textContent = originalText;
-                btn.style.background = '';
-            }, 1000);
-        }
-
-        function loadPreset(slot) {
-            const data = localStorage.getItem(`etherPreset_${slot}`);
-            if (!data) {
-                console.warn(`⚠️ Preset ${slot} not found!`);
-                alert(`Preset ${slot} not found!\nSave a preset first.`);
-                return;
-            }
-            const preset = JSON.parse(data);
-
-            // Восстановить параметры
-            P.k = preset.P.k;
-            P.e = preset.P.e;
-            P.q = preset.P.q;
-            formulaVariant = preset.formulaVariant;
-            particleColorMode = preset.particleColorMode;
-            hueOffset = preset.hueOffset;
-            showGlow = preset.showGlow;
-            baseSize = preset.baseSize;
-            orgCount = preset.orgCount;
-            particleDensity = preset.particleDensity;
-            orgSize = preset.orgSize;
-            mouseAttraction = preset.mouseAttraction;
-
-            // Обновить UI
-            document.getElementById('pk').value = P.k;
-            document.getElementById('pe').value = P.e;
-            document.getElementById('pq').value = P.q;
-            document.getElementById('fk').textContent = P.k.toFixed(1);
-            document.getElementById('fe').textContent = P.e.toFixed(1);
-            document.getElementById('fq').textContent = P.q.toFixed(1);
-            document.getElementById('formula-select').value = formulaVariant;
-            document.getElementById('formula-name').textContent = FORMULA_NAMES[formulaVariant];
-            document.getElementById('color-select').value = particleColorMode;
-            document.getElementById('basesize').value = baseSize;
-            document.getElementById('count').value = orgCount;
-            document.getElementById('particles').value = particleDensity;
-            document.getElementById('size').value = orgSize;
-            document.getElementById('pull').value = mouseAttraction * 100;
-            document.getElementById('toggle-glow').checked = showGlow;
-            renderer.domElement.classList.toggle('glow-active', showGlow);
-
-            console.log(`✅ Preset ${slot} loaded!`);
-        }
-
-        function clearPreset(slot) {
-            localStorage.removeItem(`etherPreset_${slot}`);
-            console.log(`🗑️ Preset ${slot} cleared!`);
-        }
-
-        // ============================================
-        // EXPORT FUNCTIONALITY
-        // ============================================
-        function showExport() {
-            const format = document.getElementById('export-format').value;
-            const code = generateExportCode(format);
-            document.getElementById('export-code').textContent = code;
-            document.getElementById('export-panel').classList.add('active');
-        }
-
-        function closeExport() {
-            document.getElementById('export-panel').classList.remove('active');
-        }
-
-        function copyExport() {
-            const code = document.getElementById('export-code').textContent;
-            navigator.clipboard.writeText(code).then(() => {
-                alert('Code copied to clipboard!');
-            });
-        }
-
-        function downloadExport() {
-            const format = document.getElementById('export-format').value;
-            const code = document.getElementById('export-code').textContent;
-            const ext = format === 'react' ? 'jsx' : 'js';
-            const blob = new Blob([code], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `ether-resonance.${ext}`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        function generateExportCode(format) {
-            const state = {
-                particleCount,
-                formulaVariant,
-                P: { ...P },
-                orgCount,
-                orgSize,
-                particleDensity,
-                particleColorMode,
-                ts,
-                baseSize
-            };
-
-            if (format === 'react') {
-                return `import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
-
-// ETHER RESONANCE — React Component
-// Generated from ether-resonance project
-
-const EtherResonance = () => {
-    const containerRef = useRef(null);
-    
-    useEffect(() => {
-        if (!containerRef.current) return;
-        
-        // Three.js setup
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        containerRef.current.appendChild(renderer.domElement);
-        
-        // Particle system with Float32Array optimization
-        const MAX_PARTICLES = ${state.particleCount};
-        const positions = new Float32Array(MAX_PARTICLES * 3);
-        const colors = new Float32Array(MAX_PARTICLES * 3);
-        
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-        
-        const material = new THREE.PointsMaterial({
-            size: 2,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.9,
-            blending: THREE.AdditiveBlending
-        });
-        
-        const particles = new THREE.Points(geometry, material);
-        scene.add(particles);
-        
-        camera.position.z = 500;
-        
-        // Formula parameters: k=${state.P.k}, e=${state.P.e}, q=${state.P.q}
-        // Formula variant: ${FORMULA_NAMES[state.formulaVariant]}
-        
-        function animate() {
-            requestAnimationFrame(animate);
-            // Update particle positions using formula...
-            renderer.render(scene, camera);
-        }
-        
-        animate();
-        
-        return () => {
-            containerRef.current?.removeChild(renderer.domElement);
-            renderer.dispose();
-        };
-    }, []);
-    
-    return <div ref={containerRef} style={{ width: '100vw', height: '100vh' }} />;
-};
-
-export default EtherResonance;`;
-            }
-
-            // Vanilla JS + Three.js
-            return `// ETHER RESONANCE — Vanilla JS + Three.js
-// Generated from ether-resonance project
-// Formula: ${FORMULA_NAMES[state.formulaVariant]}
-// Parameters: k=${state.P.k}, e=${state.P.e}, q=${state.P.q}
-
-import * as THREE from 'three';
-
-class EtherResonance {
-    constructor(container) {
-        this.container = container;
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
-        
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.container.appendChild(this.renderer.domElement);
-        
-        // Particle buffers (Float32Array optimization)
-        this.MAX_PARTICLES = ${state.particleCount};
-        this.positions = new Float32Array(this.MAX_PARTICLES * 3);
-        this.colors = new Float32Array(this.MAX_PARTICLES * 3);
-        
-        this.initParticleSystem();
-        this.camera.position.z = 500;
-        
-        // State
-        this.time = 0;
-        this.timeSpeed = ${ts};
-        this.formulaParams = { k: ${state.P.k}, e: ${state.P.e}, q: ${state.P.q} };
-        
-        this.animate();
     }
-    
-    initParticleSystem() {
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-        geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-        
-        const material = new THREE.PointsMaterial({
-            size: 2,
-            vertexColors: true,
-            transparent: true,
-            opacity: 0.9,
-            blending: THREE.AdditiveBlending
-        });
-        
-        this.particles = new THREE.Points(geometry, material);
-        this.scene.add(this.particles);
-    }
-    
-    calc(x, y, time, scale) {
-        // Formula: ${FORMULA_NAMES[state.formulaVariant]}
-        const { k, e, q } = this.formulaParams;
-        // ... implement formula calculation
-        return { X: x, Y: y };
-    }
-    
-    animate() {
-        requestAnimationFrame(() => this.animate());
-        this.time += this.timeSpeed;
-        this.updateParticles();
-        this.renderer.render(this.scene, this.camera);
-    }
-    
-    updateParticles() {
-        // Update particle positions using formula
-        // ...
-    }
-}
-
-// Usage:
-// const app = new EtherResonance(document.body);
-`;
-        }
-
-        // ============================================
-        // START
-        // ============================================
-        window.addEventListener('load', setup);
-        window.rnd = rnd;
-        window.rst = rst;
-        window.resetRotation = resetRotation;
-        window.showExport = showExport;
-        window.closeExport = closeExport;
-        window.copyExport = copyExport;
-        window.downloadExport = downloadExport;
-        window.savePreset = savePreset;
-        window.loadPreset = loadPreset;
-        window.toggleFullscreen = toggleFullscreen;
-
-        // ============================================
-        // BENCHMARK / PERFORMANCE MONITORING
-        // ============================================
-        window.benchmark = function(duration = 5) {
-            console.log('🔬 Starting benchmark...');
-            console.log(`Duration: ${duration} seconds`);
-            console.log(`Particles: ${particleCount}`);
-            console.log(`Max Particles: ${MAX_PARTICLES}`);
-            console.log(`Zero GC: ${gcCheckEnabled ? 'Enabled' : 'Not available'}`);
-
-            const startTime = performance.now();
-            const startFps = fps;
-            const startMemory = gcCheckEnabled ? performance.memory.usedJSHeapSize : 0;
-
-            setTimeout(() => {
-                const endTime = performance.now();
-                const elapsed = (endTime - startTime) / 1000;
-                const avgFps = fps;
-                const endMemory = gcCheckEnabled ? performance.memory.usedJSHeapSize : 0;
-                const memoryDelta = (endMemory - startMemory) / 1048576;
-
-                console.log('📊 Benchmark Results:');
-                console.log(`  Duration: ${elapsed.toFixed(2)}s`);
-                console.log(`  Avg FPS: ${avgFps}`);
-                console.log(`  Memory Start: ${(startMemory / 1048576).toFixed(2)} MB`);
-                console.log(`  Memory End: ${(endMemory / 1048576).toFixed(2)} MB`);
-                console.log(`  Memory Delta: ${memoryDelta.toFixed(2)} MB`);
-
-                if (memoryDelta > 10) {
-                    console.warn('⚠️ Potential memory leak detected!');
-                } else if (avgFps >= 55) {
-                    console.log('✅ Performance: Excellent (60 FPS target)');
-                } else if (avgFps >= 30) {
-                    console.log('⚠️ Performance: Acceptable (30 FPS target)');
-                } else {
-                    console.error('❌ Performance: Poor (< 30 FPS)');
-                }
-            }, duration * 1000);
-        };
-
-        console.log('🎮 Use benchmark(seconds) in console to run performance test');
     </script>
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check HTML references
+        run: |
+          test -f index.html
+          test -f src/main.js
+          test -f src/styles.css
+          grep -q 'src/main.js' index.html
+          grep -q 'src/styles.css' index.html
+
+      - name: Validate JS syntax
+        run: node --check src/main.js
+
+      - name: Validate HTML structure
+        run: |
+          python - <<'EOF'
+          from html.parser import HTMLParser
+          class P(HTMLParser):
+              def __init__(self):
+                  super().__init__(); self.stack=[]; self.errors=[]
+              def handle_starttag(self, tag, attrs):
+                  if tag not in ('meta','link','input','br','img','hr'):
+                      self.stack.append(tag)
+              def handle_endtag(self, tag):
+                  if self.stack and self.stack[-1]==tag: self.stack.pop()
+                  else: self.errors.append(f"mismatch </{tag}>")
+          p=P(); p.feed(open('index.html',encoding='utf-8').read())
+          assert not p.errors, p.errors
+          assert not p.stack, f"unclosed: {p.stack}"
+          print("HTML OK")
+          EOF
+
+      - name: Docker build check
+        run: docker build -t ether-resonance:ci .

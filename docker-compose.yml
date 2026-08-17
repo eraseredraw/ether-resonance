@@ -1,0 +1,8 @@
+services:
+  ether-resonance:
+    build: .
+    image: ether-resonance:latest
+    container_name: ether-resonance
+    ports:
+      - "8080:80"
+    restart: unless-stopped

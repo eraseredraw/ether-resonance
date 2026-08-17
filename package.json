@@ -1,13 +1,14 @@
 {
   "name": "ether-resonance",
-  "version": "4.0.0",
-  "description": "Интерактивная визуализация тригонометрических организмов — Three.js WebGL粒子 система",
-  "author": "Ether Resonance Team",
+  "version": "4.1.0",
+  "description": "Interactive 3D particle visualization of trigonometric organisms — Three.js + WebGL",
+  "author": "Alexey Salnikov",
   "license": "MIT",
-  "homepage": "https://github.com/ether-resonance",
+  "private": true,
+  "homepage": "https://github.com/eraseredraw/ether-resonance",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ether-resonance.git"
+    "url": "https://github.com/eraseredraw/ether-resonance.git"
   },
   "keywords": [
     "threejs",
@@ -20,21 +21,12 @@
     "graphics"
   ],
   "scripts": {
-    "start": "python server.py",
-    "serve": "python server.py",
-    "tunnel": "tunnel.bat",
-    "launch": "run.bat",
-    "dev": "python server.py",
-    "build": "echo 'No build step required - vanilla JS'",
-    "lint": "echo 'No linting configured'",
-    "test": "echo 'No tests configured'"
+    "start": "docker compose up",
+    "serve": "python -m http.server 8080",
+    "check": "node --check src/main.js"
   },
   "dependencies": {
     "three": "^0.160.0"
-  },
-  "optionalDependencies": {
-    "http-server": "^14.1.1",
-    "live-server": "^1.2.2"
   },
   "devDependencies": {},
   "engines": {

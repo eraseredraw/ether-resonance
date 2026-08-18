@@ -5,10 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="description" content="Ether Resonance — interactive 3D particle visualization driven by your voice, music and drawings. 40K particles, 10 shapes, real-time audio reactivity, Three.js + WebGL.">
+    <meta name="theme-color" content="#0A0C10">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Ether Resonance — Reactive 3D Particle Visualizer">
+    <meta property="og:description" content="40K particles morphing between 10 trigonometric organisms — driven by your voice, music, drawings and 3D models. Three.js + WebGL, zero build step.">
+    <meta property="og:url" content="https://eraseredraw.github.io/ether-resonance/">
+    <meta property="og:image" content="https://eraseredraw.github.io/ether-resonance/og.png">
+    <meta name="twitter:card" content="summary_large_image">
     <title>ETHER RESONANCE - 3D Particle Swarm</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="src/styles.css">
 </head>
 <body>
+    <!-- WebGL Error -->
+    <div id="webgl-error">
+        <h2>WEBGL NOT AVAILABLE</h2>
+        <p>This experience needs WebGL. Try a modern browser (Chrome, Edge, Firefox, Safari) or enable hardware acceleration.</p>
+    </div>
+
     <!-- Calibration Screen (NEW v2.0) -->
     <div id="calibration">
         <h2>💧 NEURAL LINK CALIBRATION</h2>
@@ -197,6 +215,38 @@
             </div>
         </div>
 
+        <!-- Секция 3.5: AUDIO REACTIVITY -->
+        <div class="section">
+            <h4>🔊 AUDIO REACTIVITY</h4>
+            <div class="audio-meter">
+                <div class="audio-meter-fill" id="audio-level"></div>
+            </div>
+            <div class="btn-row">
+                <button id="btn-audio-mic">🎙️ Mic</button>
+                <button id="btn-audio-system">🖥️ System</button>
+                <button id="btn-audio-file">🎵 Track</button>
+                <button id="btn-audio-stop">⏹ Stop</button>
+            </div>
+            <div class="playback-row" id="playback-row">
+                <button id="btn-play-pause-track">⏸️</button>
+                <input type="range" id="audio-seek" min="0" max="100" value="0">
+                <input type="range" id="audio-volume" min="0" max="100" value="80">
+            </div>
+            <div class="control-row">
+                <label>Intensity</label>
+                <input type="range" id="audio-intensity" min="0" max="2" step="0.05" value="1">
+                <span class="value" id="audio-intensity-value">1.00</span>
+            </div>
+            <div class="control-row">
+                <label>Twinkle</label>
+                <input type="checkbox" id="twinkle-toggle" checked>
+            </div>
+            <div class="btn-row">
+                <button id="btn-god-mode">🤖 God Mode</button>
+            </div>
+            <div class="audio-status" id="audio-status">OFF</div>
+        </div>
+
         <!-- Секция 4: EXPORT -->
         <div class="section">
             <h4>📤 EXPORT</h4>
@@ -239,6 +289,18 @@
                 <button id="btn-platform-glb">GLB</button>
                 <button id="btn-platform-obj">OBJ</button>
             </div>
+            <div class="control-row" style="margin-top: 12px;">
+                <label>Record (sec)</label>
+                <select id="video-duration">
+                    <option value="5">5s</option>
+                    <option value="8" selected>8s</option>
+                    <option value="15">15s</option>
+                    <option value="30">30s</option>
+                </select>
+            </div>
+            <div class="btn-row">
+                <button id="btn-record-video" class="primary">🎬 Record Video</button>
+            </div>
         </div>
 
         <!-- Секция 5: ASPECT RATIO -->
@@ -258,15 +320,15 @@
         <div class="section">
             <h4>💾 PRESETS</h4>
             <div class="btn-row">
-                <button onclick="savePreset(1)">💾 Save 1</button>
+                <button onclick="savePreset(1, this)">💾 Save 1</button>
                 <button onclick="loadPreset(1)">📂 Load 1</button>
             </div>
             <div class="btn-row">
-                <button onclick="savePreset(2)">💾 Save 2</button>
+                <button onclick="savePreset(2, this)">💾 Save 2</button>
                 <button onclick="loadPreset(2)">📂 Load 2</button>
             </div>
             <div class="btn-row">
-                <button onclick="savePreset(3)">💾 Save 3</button>
+                <button onclick="savePreset(3, this)">💾 Save 3</button>
                 <button onclick="loadPreset(3)">📂 Load 3</button>
             </div>
         </div>
@@ -283,8 +345,17 @@
                 <button id="btn-initialize" class="primary">🔮 Initialize</button>
             </div>
             <div class="btn-row" style="margin-top: 16px;">
-                <button id="btn-play-pause">▶️ Play/Pause</button>
+                <button id="btn-play-pause">⏸️ Pause</button>
                 <button id="btn-copy-prompt">📋 Copy Prompt</button>
+            </div>
+            <div class="control-row" style="margin-top: 12px;">
+                <label>Rotate Speed</label>
+                <input type="range" id="rotate-speed" min="0" max="4" step="0.1" value="0.5">
+                <span class="value" id="rotate-speed-value">0.5</span>
+            </div>
+            <div class="control-row">
+                <label>Auto Rotate</label>
+                <input type="checkbox" id="auto-rotate" checked>
             </div>
             <div class="btn-row">
                 <button id="btn-save-local">💾 + Save Local</button>
@@ -292,7 +363,6 @@
             </div>
             <div class="btn-row">
                 <button id="btn-ai-guide">❓ AI Guide</button>
-                <button id="btn-visualize-text">📝 Visualize Text</button>
             </div>
         </div>
 
@@ -301,7 +371,7 @@
             <h4>📁 UPLOAD</h4>
             <div class="btn-row">
                 <button id="btn-upload-image">🖼️ Upload Image</button>
-                <button id="btn-upload-video">🎬 Upload Video</button>
+                <button id="btn-upload-video">🎵 Audio Track</button>
             </div>
             <div class="btn-row">
                 <button id="btn-upload-3d">🧊 Upload 3D Model</button>
@@ -324,16 +394,40 @@
     <!-- Drawing Pad Toggle Button -->
     <button id="drawing-pad-toggle" title="Toggle Drawing Pad">🎨</button>
 
-    <!-- Drawing Pad (скрыт по умолчанию, COMING SOON) -->
+    <!-- Drawing Pad (скрыт по умолчанию) -->
     <div id="drawing-pad" class="hidden">
-        <button id="btn-pen" disabled>✏️ Pen</button>
-        <button id="btn-eraser" disabled>🧹 Eraser</button>
-        <button id="btn-undo" disabled>↩️ Undo</button>
-        <button id="btn-redo" disabled>↪️ Redo</button>
-        <button id="btn-sym" disabled>🔁 Sym</button>
-        <button id="btn-pulsar" disabled>💫 Pulsar</button>
-        <button id="btn-live-update" class="primary" disabled>⚡ LIVE</button>
-        <button id="btn-open-drawing" disabled>🎨 Open</button>
+        <button id="btn-pen" class="active">✏️ Pen</button>
+        <button id="btn-eraser">🧹 Eraser</button>
+        <div class="draw-brush">
+            <label>Brush</label>
+            <input type="range" id="draw-brush-size" min="4" max="80" step="2" value="24">
+            <span class="value" id="draw-brush-size-value">24</span>
+        </div>
+        <button id="btn-undo">↩️ Undo</button>
+        <button id="btn-redo">↪️ Redo</button>
+        <button id="btn-sym">🔁 Sym</button>
+        <button id="btn-pulsar">💫 Pulsar</button>
+        <button id="btn-live-update" class="primary">⚡ LIVE: ON</button>
+        <button id="btn-open-drawing" class="danger">🗑️ Clear</button>
+    </div>
+
+    <!-- Drop Overlay -->
+    <div id="drop-overlay">
+        <div class="drop-content">📁 DROP IMAGE / MODEL / AUDIO</div>
+    </div>
+
+    <!-- Guide Modal -->
+    <div id="guide" class="hidden">
+        <h3>❓ AI GUIDE</h3>
+        <div class="guide-row"><span>🖱️ Drag</span> — rotate camera</div>
+        <div class="guide-row"><span>🖱️ Wheel / pinch</span> — zoom</div>
+        <div class="guide-row"><span>Tab</span> — toggle panels</div>
+        <div class="guide-row"><span>Space</span> — pause / resume</div>
+        <div class="guide-row"><span>R</span> — randomize</div>
+        <div class="guide-row"><span>C</span> — reset camera</div>
+        <div class="btn-row" style="margin-top: 12px;">
+            <button id="btn-guide-close">Close</button>
+        </div>
     </div>
 
     <!-- Three.js + Post Processing -->

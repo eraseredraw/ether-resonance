@@ -29,7 +29,20 @@ jobs:
           grep -q 'src/styles.css' index.html
 
       - name: Validate JS syntax
-        run: node --check src/main.js
+        run: |
+          node --check src/main.js
+          node --check src/shapes.js
+          node --check src/colors.js
+          node --check src/audio.js
+          node --check src/shaders.js
+          node --check src/drawing.js
+          node --check src/exporters.js
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
 
       - name: Validate HTML structure
         run: |

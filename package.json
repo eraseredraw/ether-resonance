@@ -1,6 +1,6 @@
 {
   "name": "ether-resonance",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "description": "Interactive 3D particle visualization of trigonometric organisms — Three.js + WebGL",
   "author": "Alexey Salnikov",
   "license": "MIT",
@@ -23,7 +23,8 @@
   "scripts": {
     "start": "docker compose up",
     "serve": "python -m http.server 8080",
-    "check": "node --check src/main.js"
+    "check": "node --check src/main.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "three": "^0.160.0"

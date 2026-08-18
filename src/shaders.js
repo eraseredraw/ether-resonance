@@ -4,7 +4,7 @@
 // twinkle and audio intensity, replacing PointsMaterial.
 // ============================================
 import * as THREE from 'three';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 const VERTEX_SHADER = `
 uniform float uSize;

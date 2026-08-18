@@ -65,9 +65,9 @@ let colorSaturation = 0.8;
 let colorAnimation = 'static';
 
 let bloomEnabled = true;
-let bloomIntensity = 3.0;
+let bloomIntensity = 3.5;
 let trailEnabled = false;
-let particleSize = 0.5;
+let particleSize = 0.75;
 let twinkleEnabled = true;
 
 let autoRotate = true;
@@ -1057,9 +1057,9 @@ const DEFAULT_CONFIG = {
     hueOffset: 0,
     colorAnimation: 'static',
     bloomEnabled: true,
-    bloomIntensity: 3.0,
+    bloomIntensity: 3.5,
     trailEnabled: false,
-    particleSize: 0.5,
+    particleSize: 0.75,
     simSpeed: 0.5,
     autoRotate: true,
     rotateSpeed: 0.5,
@@ -1577,8 +1577,13 @@ function animate() {
         }
     }
 
-    // Shader time
-    updateParticleMaterial(material, { time });
+    // Shader time + beat pulse on particle size
+    let beatPulse = 0;
+    if (audioEngine && audioEngine.active) {
+        const f = audioEngine.getFrame();
+        beatPulse = Math.max(0, f.beat ? 1 : f.level * 0.5);
+    }
+    updateParticleMaterial(material, { time, beatPulse });
 
     // Starfield slow drift
     if (starfield) {

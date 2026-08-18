@@ -11,6 +11,7 @@ uniform float uSize;
 uniform float uPixelRatio;
 uniform float uTwinkle;
 uniform float uTime;
+uniform float uBeatPulse;
 attribute vec3 color;
 varying vec3 vColor;
 varying float vSeed;
@@ -24,7 +25,7 @@ void main() {
     vSeed = hash(position + 0.37);
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
     float tw = uTwinkle > 0.5 ? 0.7 + 0.5 * sin(uTime * (1.0 + vSeed * 4.0) + vSeed * 90.0) : 1.0;
-    float size = uSize * uPixelRatio * (0.6 + vSeed * 0.8) * tw;
+    float size = uSize * uPixelRatio * (0.6 + vSeed * 0.8) * tw * (1.0 + uBeatPulse * 0.35);
     gl_PointSize = size * (420.0 / max(0.1, -mv.z));
     gl_Position = projectionMatrix * mv;
 }
@@ -40,21 +41,22 @@ void main() {
     vec2 uv = gl_PointCoord - 0.5;
     float d = length(uv) * 2.0;
     float core = 1.0 - smoothstep(0.15, 0.5, d);
-    float glow = exp(-d * 5.0) * 0.9;
+    float glow = exp(-d * 4.2) * 1.2;
     float a = core + glow;
-    vec3 c = vColor * (core * 1.0 + glow * 0.6) * uIntensity;
-    gl_FragColor = vec4(c, min(1.0, a * 0.95));
+    vec3 c = vColor * (core * 1.3 + glow * 0.8) * uIntensity * 1.2;
+    gl_FragColor = vec4(c, min(1.0, a * 0.98));
 }
 `;
 
-export function createParticleMaterial({ size = 0.5, intensity = 1.0 } = {}) {
+export function createParticleMaterial({ size = 0.75, intensity = 1.0 } = {}) {
     const mat = new THREE.ShaderMaterial({
         uniforms: {
             uSize: { value: size },
             uPixelRatio: { value: 1 },
             uTime: { value: 0 },
             uTwinkle: { value: 1 },
-            uIntensity: { value: intensity }
+            uIntensity: { value: intensity },
+            uBeatPulse: { value: 0 }
         },
         vertexShader: VERTEX_SHADER,
         fragmentShader: FRAGMENT_SHADER,
@@ -65,13 +67,14 @@ export function createParticleMaterial({ size = 0.5, intensity = 1.0 } = {}) {
     return mat;
 }
 
-export function updateParticleMaterial(mat, { size, intensity, twinkle, time, pixelRatio }) {
+export function updateParticleMaterial(mat, { size, intensity, twinkle, time, pixelRatio, beatPulse }) {
     if (!mat) return;
     if (size !== undefined) mat.uniforms.uSize.value = size;
     if (intensity !== undefined) mat.uniforms.uIntensity.value = intensity;
     if (twinkle !== undefined) mat.uniforms.uTwinkle.value = twinkle ? 1 : 0;
     if (time !== undefined) mat.uniforms.uTime.value = time;
     if (pixelRatio !== undefined) mat.uniforms.uPixelRatio.value = pixelRatio;
+    if (beatPulse !== undefined) mat.uniforms.uBeatPulse.value = beatPulse;
 }
 
 // ============================================

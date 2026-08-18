@@ -109,6 +109,7 @@ let rgbShiftPass = null;
 let starfieldEnabled = true;
 let aberrationEnabled = false;
 let pointerMagnet = false;
+let pointerFxEnabled = false;
 
 // Camera preset target (smooth glide)
 let camTarget = null;
@@ -598,6 +599,12 @@ function setupEventListeners() {
     document.getElementById('starfield-toggle')?.addEventListener('change', e => setSceneToggle('starfield', e.target.checked));
     document.getElementById('aberration-toggle')?.addEventListener('change', e => setSceneToggle('aberration', e.target.checked));
 
+    // --- Pointer FX (magnet/repulse/wave), off by default ---
+    document.getElementById('pointerfx-toggle')?.addEventListener('change', e => {
+        pointerFxEnabled = e.target.checked;
+        if (!pointerFxEnabled) setMouseState(-9999, -9999, 0);
+    });
+
     // --- Pointer magnet (attract vs repulse) ---
     document.getElementById('magnet-toggle')?.addEventListener('change', e => {
         pointerMagnet = e.target.checked;
@@ -606,15 +613,17 @@ function setupEventListeners() {
 
     // --- Pointer interaction (repulse + click shockwave) ---
     renderer.domElement.addEventListener('pointermove', (e) => {
+        if (!pointerFxEnabled) return;
         pointerActive = true;
         updatePointerWorld(e);
         setMouseState(pointerWorld.x, pointerWorld.y, 26);
     });
     renderer.domElement.addEventListener('pointerleave', () => {
         pointerActive = false;
-        setMouseState(-9999, -9999, 0);
+        if (pointerFxEnabled) setMouseState(-9999, -9999, 0);
     });
     renderer.domElement.addEventListener('pointerdown', (e) => {
+        if (!pointerFxEnabled) return;
         updatePointerWorld(e);
         triggerWave(pointerWorld.x, pointerWorld.y, time);
     });
@@ -1041,6 +1050,7 @@ function updateUIFromState() {
     document.getElementById('twinkle-toggle').checked = twinkleEnabled;
     document.getElementById('starfield-toggle').checked = starfieldEnabled;
     document.getElementById('aberration-toggle').checked = aberrationEnabled;
+    document.getElementById('pointerfx-toggle').checked = pointerFxEnabled;
     updateHudFormName();
 }
 
@@ -1065,7 +1075,8 @@ const DEFAULT_CONFIG = {
     rotateSpeed: 0.5,
     twinkleEnabled: true,
     starfieldEnabled: true,
-    aberrationEnabled: false
+    aberrationEnabled: false,
+    pointerFxEnabled: false
 };
 
 function collectConfig() {
@@ -1087,7 +1098,8 @@ function collectConfig() {
         rotateSpeed,
         twinkleEnabled,
         starfieldEnabled,
-        aberrationEnabled
+        aberrationEnabled,
+        pointerFxEnabled
     };
 }
 
@@ -1115,11 +1127,13 @@ function applyConfig(cfg) {
     if (typeof cfg.twinkleEnabled === 'boolean') twinkleEnabled = cfg.twinkleEnabled;
     if (typeof cfg.starfieldEnabled === 'boolean') starfieldEnabled = cfg.starfieldEnabled;
     if (typeof cfg.aberrationEnabled === 'boolean') aberrationEnabled = cfg.aberrationEnabled;
+    if (typeof cfg.pointerFxEnabled === 'boolean') pointerFxEnabled = cfg.pointerFxEnabled;
 
     updateParticleMaterial(material, { size: particleSize, twinkle: twinkleEnabled });
     if (bloomPass) bloomPass.strength = bloomIntensity;
     if (rgbShiftPass) rgbShiftPass.enabled = aberrationEnabled;
     if (starfield) starfield.visible = starfieldEnabled;
+    if (!pointerFxEnabled) setMouseState(-9999, -9999, 0);
     if (controls) {
         controls.autoRotate = autoRotate;
         controls.autoRotateSpeed = rotateSpeed;

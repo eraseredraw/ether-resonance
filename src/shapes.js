@@ -26,6 +26,7 @@ let formRotationSpeedMod = 1;
 let mouseX = -9999;
 let mouseY = -9999;
 let mouseStrength = 0;
+let mouseMode = 'repulse'; // 'repulse' | 'attract'
 let waveX = 0;
 let waveY = 0;
 let waveStart = -999999;
@@ -34,6 +35,10 @@ export function setMouseState(x, y, strength) {
     mouseX = x;
     mouseY = y;
     mouseStrength = strength;
+}
+
+export function setMouseMode(mode) {
+    mouseMode = mode === 'attract' ? 'attract' : 'repulse';
 }
 
 export function triggerWave(x, y, nowSec) {
@@ -78,8 +83,14 @@ export function writeShapePosition(i, t, time, out, o) {
 
     switch (currentShape) {
         case 'sphere': {
-            const r = scale * Math.cbrt((i + 0.5) / t);
-            const a = theta + time * rotSpeed;
+            // Multi-shell living sphere: 4 nested shells, each rotating
+            // at its own speed, breathing radius, per-particle wobble.
+            const shells = 4;
+            const shell = i % shells;
+            const wob = Math.sin(i * 127.1) * 43758.5453 % 1;
+            const rShell = scale * (0.35 + 0.65 * (shell / (shells - 1)));
+            const r = rShell * (0.85 + 0.3 * Math.abs(wob)) * (1 + 0.05 * Math.sin(time * 2 + shell * 1.7));
+            const a = theta + time * rotSpeed * (0.6 + shell * 0.45);
             x = r * Math.sin(phi) * Math.cos(a);
             y = r * Math.sin(phi) * Math.sin(a);
             z = r * Math.cos(phi);
@@ -209,7 +220,7 @@ export function writeShapePosition(i, t, time, out, o) {
         z += (Math.random() - 0.5) * scale * chaosFactor;
     }
 
-    // Cursor repulsion
+    // Cursor repulsion / attraction
     if (mouseStrength > 0) {
         const mdx = x - mouseX;
         const mdy = y - mouseY;
@@ -219,9 +230,10 @@ export function writeShapePosition(i, t, time, out, o) {
         if (md2 < pushR * pushR && md2 > 1e-6) {
             const md = Math.sqrt(md2);
             const push = mouseStrength * (1 - md / pushR);
-            x += (mdx / md) * push;
-            y += (mdy / md) * push;
-            z += (mdz / md) * push;
+            const sign = mouseMode === 'attract' ? -1 : 1;
+            x += (mdx / md) * push * sign;
+            y += (mdy / md) * push * sign;
+            z += (mdz / md) * push * sign;
         }
     }
 

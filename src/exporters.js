@@ -131,6 +131,7 @@ let particleSize = config.particleSize;
 let mouseX = -9999;
 let mouseY = -9999;
 let mouseStrength = 0;
+let mouseMode = 'repulse';
 let waveX = 0;
 let waveY = 0;
 let waveStart = -999999;

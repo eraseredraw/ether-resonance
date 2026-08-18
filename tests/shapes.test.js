@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
     SHAPES, setShapeState, setFormScaleMod, setFormRotationSpeedMod,
     setOffsetSource, regenerateOffsets, writeShapePosition, clearOffsets, getOffsets,
-    setMouseState, triggerWave
+    setMouseState, setMouseMode, triggerWave
 } from '../src/shapes.js';
 
 function gen(shape, count = 10000, t = 0) {
@@ -132,6 +132,37 @@ describe('pointer interaction', () => {
         expect(Array.from(b)).toEqual(Array.from(a));
     });
 
+    it('attract mode pulls particles toward the pointer', () => {
+        setShapeState({ currentShape: 'sphere', formScale: 8, formRotationSpeed: 0, formChaos: 0 });
+        setMouseMode('attract');
+        const before = new Float32Array(2000 * 3);
+        for (let i = 0; i < 2000; i++) writeShapePosition(i, 2000, 0, before, i * 3);
+
+        setMouseState(0, 0, 1000);
+        const after = new Float32Array(2000 * 3);
+        for (let i = 0; i < 2000; i++) writeShapePosition(i, 2000, 0, after, i * 3);
+
+        const o = 0;
+        const dx = after[o] - before[o];
+        const dy = after[o + 1] - before[o + 1];
+        const dz = after[o + 2] - before[o + 2];
+        const dist = Math.sqrt(before[o] ** 2 + before[o + 1] ** 2 + before[o + 2] ** 2);
+        // motion must point toward the cursor (origin)
+        const inward = (dx * -before[o] + dy * -before[o + 1] + dz * -before[o + 2]) / dist;
+        expect(inward).toBeGreaterThan(0);
+    });
+
+    it('sphere stays a filled volume (multi-shell keeps max radius in bounds)', () => {
+        const count = 20000;
+        const out = gen('sphere', count);
+        let max = 0;
+        for (let i = 0; i < count; i++) {
+            max = Math.max(max, Math.sqrt(out[i * 3] ** 2 + out[i * 3 + 1] ** 2 + out[i * 3 + 2] ** 2));
+        }
+        expect(max).toBeLessThan(150 * 1.3);
+        expect(max).toBeGreaterThan(120);
+    });
+
     it('click shockwave displaces particles during its lifetime', () => {
         setShapeState({ currentShape: 'sphere', formScale: 40, formRotationSpeed: 0, formChaos: 0 });
         const a = new Float32Array(200 * 3);
@@ -155,7 +186,7 @@ describe('pointer interaction', () => {
         const b = new Float32Array(200 * 3);
         triggerWave(0, 0, -5);
         for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0, a, i * 3);
-        for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0.5, b, i * 3);
+        for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0, b, i * 3);
         expect(Array.from(b)).toEqual(Array.from(a));
     });
 });

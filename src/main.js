@@ -25,7 +25,6 @@ import {
 import { AudioEngine } from './audio.js';
 import {
     createParticleMaterial, updateParticleMaterial,
-    createOrbMaterial, updateOrbMaterial,
     createRGBShiftPass, createStarfield
 } from './shaders.js';
 import { DrawingPad } from './drawing.js';
@@ -105,13 +104,11 @@ let colorsDirty = true;
 let drawingPad = null;
 
 // Scene extras
-let orbMesh = null;
-let orbMaterial = null;
 let starfield = null;
 let rgbShiftPass = null;
-let orbEnabled = true;
 let starfieldEnabled = true;
 let aberrationEnabled = false;
+let pointerMagnet = false;
 
 // Camera preset target (smooth glide)
 let camTarget = null;
@@ -206,9 +203,6 @@ function init() {
 
         updateLoading(30, 'Creating particles...');
         rebuildParticles();
-
-        updateLoading(50, 'Forging the core...');
-        createOrb();
 
         updateLoading(60, 'Sowing the stars...');
         createStarfieldInScene();
@@ -348,11 +342,18 @@ function advanceMorph(dt) {
     morphProgress = Math.min(morphProgress + dt / morphDuration, 1);
     const eased = easeInOutCubic(morphProgress);
 
+    // Chaotic reassembly: particles scatter with per-particle hash jitter
+    // that shrinks to zero as the morph lands on the target shape.
+    const jitter = formScale * 1.1 * Math.pow(1 - eased, 1.5);
+
     for (let i = 0; i < particleCount; i++) {
         const o = i * 3;
-        posArr[o] = morphStart[o] + (morphTarget[o] - morphStart[o]) * eased;
-        posArr[o + 1] = morphStart[o + 1] + (morphTarget[o + 1] - morphStart[o + 1]) * eased;
-        posArr[o + 2] = morphStart[o + 2] + (morphTarget[o + 2] - morphStart[o + 2]) * eased;
+        const hx = Math.sin(i * 12.9898) * 43758.5453 % 1 - 0.5;
+        const hy = Math.sin(i * 78.233 + 1) * 43758.5453 % 1 - 0.5;
+        const hz = Math.sin(i * 45.164 + 2) * 43758.5453 % 1 - 0.5;
+        posArr[o] = morphStart[o] + (morphTarget[o] - morphStart[o]) * eased + hx * jitter * 2;
+        posArr[o + 1] = morphStart[o + 1] + (morphTarget[o + 1] - morphStart[o + 1]) * eased + hy * jitter * 2;
+        posArr[o + 2] = morphStart[o + 2] + (morphTarget[o + 2] - morphStart[o + 2]) * eased + hz * jitter * 2;
     }
     geometry.attributes.position.needsUpdate = true;
 
@@ -372,16 +373,8 @@ function advanceMorph(dt) {
 }
 
 // ============================================
-// SCENE EXTRAS (orb, starfield, RGB shift)
+// SCENE EXTRAS (starfield, RGB shift)
 // ============================================
-function createOrb() {
-    const geo = new THREE.SphereGeometry(55, 96, 96);
-    orbMaterial = createOrbMaterial();
-    orbMesh = new THREE.Mesh(geo, orbMaterial);
-    orbMesh.visible = orbEnabled;
-    scene.add(orbMesh);
-}
-
 function createStarfieldInScene() {
     starfield = createStarfield(1200, 1500);
     starfield.visible = starfieldEnabled;
@@ -389,10 +382,7 @@ function createStarfieldInScene() {
 }
 
 function setSceneToggle(name, enabled) {
-    if (name === 'orb') {
-        orbEnabled = enabled;
-        if (orbMesh) orbMesh.visible = enabled;
-    } else if (name === 'starfield') {
+    if (name === 'starfield') {
         starfieldEnabled = enabled;
         if (starfield) starfield.visible = enabled;
     } else if (name === 'aberration') {
@@ -605,9 +595,14 @@ function setupEventListeners() {
     document.getElementById('btn-cam-orbit')?.addEventListener('click', () => setCameraPreset('orbit'));
 
     // --- Scene toggles ---
-    document.getElementById('orb-toggle')?.addEventListener('change', e => setSceneToggle('orb', e.target.checked));
     document.getElementById('starfield-toggle')?.addEventListener('change', e => setSceneToggle('starfield', e.target.checked));
     document.getElementById('aberration-toggle')?.addEventListener('change', e => setSceneToggle('aberration', e.target.checked));
+
+    // --- Pointer magnet (attract vs repulse) ---
+    document.getElementById('magnet-toggle')?.addEventListener('change', e => {
+        pointerMagnet = e.target.checked;
+        setMouseMode(pointerMagnet ? 'attract' : 'repulse');
+    });
 
     // --- Pointer interaction (repulse + click shockwave) ---
     renderer.domElement.addEventListener('pointermove', (e) => {
@@ -1044,7 +1039,6 @@ function updateUIFromState() {
     document.getElementById('rotate-speed-value').textContent = rotateSpeed.toFixed(1);
     document.getElementById('auto-rotate').checked = autoRotate;
     document.getElementById('twinkle-toggle').checked = twinkleEnabled;
-    document.getElementById('orb-toggle').checked = orbEnabled;
     document.getElementById('starfield-toggle').checked = starfieldEnabled;
     document.getElementById('aberration-toggle').checked = aberrationEnabled;
     updateHudFormName();
@@ -1070,7 +1064,6 @@ const DEFAULT_CONFIG = {
     autoRotate: true,
     rotateSpeed: 0.5,
     twinkleEnabled: true,
-    orbEnabled: true,
     starfieldEnabled: true,
     aberrationEnabled: false
 };
@@ -1093,7 +1086,6 @@ function collectConfig() {
         autoRotate,
         rotateSpeed,
         twinkleEnabled,
-        orbEnabled,
         starfieldEnabled,
         aberrationEnabled
     };
@@ -1121,14 +1113,12 @@ function applyConfig(cfg) {
     if (typeof cfg.autoRotate === 'boolean') autoRotate = cfg.autoRotate;
     if (typeof cfg.rotateSpeed === 'number') rotateSpeed = cfg.rotateSpeed;
     if (typeof cfg.twinkleEnabled === 'boolean') twinkleEnabled = cfg.twinkleEnabled;
-    if (typeof cfg.orbEnabled === 'boolean') orbEnabled = cfg.orbEnabled;
     if (typeof cfg.starfieldEnabled === 'boolean') starfieldEnabled = cfg.starfieldEnabled;
     if (typeof cfg.aberrationEnabled === 'boolean') aberrationEnabled = cfg.aberrationEnabled;
 
     updateParticleMaterial(material, { size: particleSize, twinkle: twinkleEnabled });
     if (bloomPass) bloomPass.strength = bloomIntensity;
     if (rgbShiftPass) rgbShiftPass.enabled = aberrationEnabled;
-    if (orbMesh) orbMesh.visible = orbEnabled;
     if (starfield) starfield.visible = starfieldEnabled;
     if (controls) {
         controls.autoRotate = autoRotate;
@@ -1589,14 +1579,6 @@ function animate() {
 
     // Shader time
     updateParticleMaterial(material, { time });
-
-    // Orb: living core, pulses with the beat
-    if (orbMesh && orbMaterial) {
-        const level = audioEngine && audioEngine.active ? audioEngine.getFrame().level : 0;
-        const beatPulse = audioEngine && audioEngine.active && audioEngine.getFrame().beat ? 1 : 0;
-        updateOrbMaterial(orbMaterial, { time, pulse: beatPulse + level * 0.5 });
-        orbMesh.rotation.y = time * 0.2;
-    }
 
     // Starfield slow drift
     if (starfield) {

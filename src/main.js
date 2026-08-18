@@ -15,14 +15,19 @@ import {
     setShapeState, getShapeState,
     setFormScaleMod, setFormRotationSpeedMod,
     setOffsetSource, getOffsetSource, clearOffsets, regenerateOffsets,
-    writePositionsToArray, writeShapePosition
+    writePositionsToArray, writeShapePosition,
+    setMouseState, triggerWave
 } from './shapes.js';
 import {
     setColorState, setHueOffsetMod, setColorTime,
     writeColorsToArray, writeParticleColor
 } from './colors.js';
 import { AudioEngine } from './audio.js';
-import { createParticleMaterial, updateParticleMaterial } from './shaders.js';
+import {
+    createParticleMaterial, updateParticleMaterial,
+    createOrbMaterial, updateOrbMaterial,
+    createRGBShiftPass, createStarfield
+} from './shaders.js';
 import { DrawingPad } from './drawing.js';
 import {
     downloadBlob, buildPlyText, buildObjText, buildGlbBuffer,
@@ -98,6 +103,24 @@ let colorsDirty = true;
 
 // Drawing pad
 let drawingPad = null;
+
+// Scene extras
+let orbMesh = null;
+let orbMaterial = null;
+let starfield = null;
+let rgbShiftPass = null;
+let orbEnabled = true;
+let starfieldEnabled = true;
+let aberrationEnabled = false;
+
+// Camera preset target (smooth glide)
+let camTarget = null;
+
+// Pointer interaction
+let pointerActive = false;
+let pointerWorld = new THREE.Vector3(0, 0, 0);
+const pointerRaycaster = new THREE.Raycaster();
+const pointerPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
 // ============================================
 // CACHED MATH CONSTANTS (Zero GC)
@@ -183,6 +206,12 @@ function init() {
 
         updateLoading(30, 'Creating particles...');
         rebuildParticles();
+
+        updateLoading(50, 'Forging the core...');
+        createOrb();
+
+        updateLoading(60, 'Sowing the stars...');
+        createStarfieldInScene();
 
         updateLoading(70, 'Setting up post-processing...');
         setupPostProcessing();
@@ -343,6 +372,53 @@ function advanceMorph(dt) {
 }
 
 // ============================================
+// SCENE EXTRAS (orb, starfield, RGB shift)
+// ============================================
+function createOrb() {
+    const geo = new THREE.SphereGeometry(55, 96, 96);
+    orbMaterial = createOrbMaterial();
+    orbMesh = new THREE.Mesh(geo, orbMaterial);
+    orbMesh.visible = orbEnabled;
+    scene.add(orbMesh);
+}
+
+function createStarfieldInScene() {
+    starfield = createStarfield(1200, 1500);
+    starfield.visible = starfieldEnabled;
+    scene.add(starfield);
+}
+
+function setSceneToggle(name, enabled) {
+    if (name === 'orb') {
+        orbEnabled = enabled;
+        if (orbMesh) orbMesh.visible = enabled;
+    } else if (name === 'starfield') {
+        starfieldEnabled = enabled;
+        if (starfield) starfield.visible = enabled;
+    } else if (name === 'aberration') {
+        aberrationEnabled = enabled;
+        if (rgbShiftPass) rgbShiftPass.enabled = enabled;
+    }
+}
+
+function setCameraPreset(preset) {
+    if (!camera) return;
+    if (controls && !controls._camPresetHooked) {
+        controls._camPresetHooked = true;
+        controls.addEventListener('start', () => { camTarget = null; });
+    }
+    let target;
+    if (preset === 'front') target = new THREE.Vector3(0, 0, 480);
+    else if (preset === 'top') target = new THREE.Vector3(0, 480, 1);
+    else if (preset === 'orbit') target = new THREE.Vector3(0, 100, 400);
+    camTarget = target;
+    targetZoomDistance = target.length();
+    if (preset !== 'orbit' && controls) controls.autoRotate = false;
+    else if (preset === 'orbit' && controls) controls.autoRotate = autoRotate;
+    showNotification('CAMERA: ' + preset.toUpperCase());
+}
+
+// ============================================
 // POST PROCESSING
 // ============================================
 function setupPostProcessing() {
@@ -362,6 +438,10 @@ function setupPostProcessing() {
         0.85
     );
     composer.addPass(bloomPass);
+
+    rgbShiftPass = createRGBShiftPass(0.0025);
+    rgbShiftPass.enabled = aberrationEnabled;
+    composer.addPass(rgbShiftPass);
 
     window.adjustBloomQuality = function (fps) {
         if (fps < 30) {
@@ -517,6 +597,31 @@ function setupEventListeners() {
     document.getElementById('auto-rotate').addEventListener('change', e => {
         autoRotate = e.target.checked;
         if (controls) controls.autoRotate = autoRotate;
+    });
+
+    // --- Camera presets ---
+    document.getElementById('btn-cam-front')?.addEventListener('click', () => setCameraPreset('front'));
+    document.getElementById('btn-cam-top')?.addEventListener('click', () => setCameraPreset('top'));
+    document.getElementById('btn-cam-orbit')?.addEventListener('click', () => setCameraPreset('orbit'));
+
+    // --- Scene toggles ---
+    document.getElementById('orb-toggle')?.addEventListener('change', e => setSceneToggle('orb', e.target.checked));
+    document.getElementById('starfield-toggle')?.addEventListener('change', e => setSceneToggle('starfield', e.target.checked));
+    document.getElementById('aberration-toggle')?.addEventListener('change', e => setSceneToggle('aberration', e.target.checked));
+
+    // --- Pointer interaction (repulse + click shockwave) ---
+    renderer.domElement.addEventListener('pointermove', (e) => {
+        pointerActive = true;
+        updatePointerWorld(e);
+        setMouseState(pointerWorld.x, pointerWorld.y, 26);
+    });
+    renderer.domElement.addEventListener('pointerleave', () => {
+        pointerActive = false;
+        setMouseState(-9999, -9999, 0);
+    });
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+        updatePointerWorld(e);
+        triggerWave(pointerWorld.x, pointerWorld.y, time);
     });
 
     // --- Export ---
@@ -844,11 +949,24 @@ let dtLast = 0;
 // ============================================
 // CAMERA / ASPECT
 // ============================================
+function updatePointerWorld(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointerRaycaster.setFromCamera(
+        new THREE.Vector2(
+            ((e.clientX - rect.left) / rect.width) * 2 - 1,
+            -((e.clientY - rect.top) / rect.height) * 2 + 1
+        ),
+        camera
+    );
+    pointerRaycaster.ray.intersectPlane(pointerPlane, pointerWorld);
+}
+
 function resetCamera() {
     if (!controls) return;
     controls.target.set(0, 0, 0);
     camera.position.set(0, 100, 400);
     targetZoomDistance = camera.position.length();
+    camTarget = null;
     controls.update();
     showNotification('CAMERA RESET');
 }
@@ -926,6 +1044,9 @@ function updateUIFromState() {
     document.getElementById('rotate-speed-value').textContent = rotateSpeed.toFixed(1);
     document.getElementById('auto-rotate').checked = autoRotate;
     document.getElementById('twinkle-toggle').checked = twinkleEnabled;
+    document.getElementById('orb-toggle').checked = orbEnabled;
+    document.getElementById('starfield-toggle').checked = starfieldEnabled;
+    document.getElementById('aberration-toggle').checked = aberrationEnabled;
     updateHudFormName();
 }
 
@@ -948,7 +1069,10 @@ const DEFAULT_CONFIG = {
     simSpeed: 0.5,
     autoRotate: true,
     rotateSpeed: 0.5,
-    twinkleEnabled: true
+    twinkleEnabled: true,
+    orbEnabled: true,
+    starfieldEnabled: true,
+    aberrationEnabled: false
 };
 
 function collectConfig() {
@@ -968,7 +1092,10 @@ function collectConfig() {
         simSpeed,
         autoRotate,
         rotateSpeed,
-        twinkleEnabled
+        twinkleEnabled,
+        orbEnabled,
+        starfieldEnabled,
+        aberrationEnabled
     };
 }
 
@@ -994,9 +1121,15 @@ function applyConfig(cfg) {
     if (typeof cfg.autoRotate === 'boolean') autoRotate = cfg.autoRotate;
     if (typeof cfg.rotateSpeed === 'number') rotateSpeed = cfg.rotateSpeed;
     if (typeof cfg.twinkleEnabled === 'boolean') twinkleEnabled = cfg.twinkleEnabled;
+    if (typeof cfg.orbEnabled === 'boolean') orbEnabled = cfg.orbEnabled;
+    if (typeof cfg.starfieldEnabled === 'boolean') starfieldEnabled = cfg.starfieldEnabled;
+    if (typeof cfg.aberrationEnabled === 'boolean') aberrationEnabled = cfg.aberrationEnabled;
 
     updateParticleMaterial(material, { size: particleSize, twinkle: twinkleEnabled });
     if (bloomPass) bloomPass.strength = bloomIntensity;
+    if (rgbShiftPass) rgbShiftPass.enabled = aberrationEnabled;
+    if (orbMesh) orbMesh.visible = orbEnabled;
+    if (starfield) starfield.visible = starfieldEnabled;
     if (controls) {
         controls.autoRotate = autoRotate;
         controls.autoRotateSpeed = rotateSpeed;
@@ -1456,6 +1589,32 @@ function animate() {
 
     // Shader time
     updateParticleMaterial(material, { time });
+
+    // Orb: living core, pulses with the beat
+    if (orbMesh && orbMaterial) {
+        const level = audioEngine && audioEngine.active ? audioEngine.getFrame().level : 0;
+        const beatPulse = audioEngine && audioEngine.active && audioEngine.getFrame().beat ? 1 : 0;
+        updateOrbMaterial(orbMaterial, { time, pulse: beatPulse + level * 0.5 });
+        orbMesh.rotation.y = time * 0.2;
+    }
+
+    // Starfield slow drift
+    if (starfield) {
+        starfield.rotation.y = time * 0.005;
+        starfield.rotation.x = Math.sin(time * 0.003) * 0.05;
+    }
+
+    // Chromatic aberration breathes with music
+    if (rgbShiftPass && rgbShiftPass.enabled) {
+        const lvl = audioEngine && audioEngine.active ? audioEngine.getFrame().level : 0;
+        rgbShiftPass.uniforms.uAmount.value = 0.0015 + lvl * 0.004;
+    }
+
+    // Smooth glide to camera preset
+    if (camera && camTarget) {
+        camera.position.lerp(camTarget, 0.04);
+        if (camera.position.distanceTo(camTarget) < 2) camTarget = null;
+    }
 
     // Smooth zoom toward target distance
     if (camera) {

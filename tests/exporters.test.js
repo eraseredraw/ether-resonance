@@ -100,6 +100,13 @@ describe('code export', () => {
         expect(code).toContain('hueOffsetMod');
     });
 
+    it.each(['vanilla', 'react', 'three'])('declares pointer vars used by shape fn for %s', type => {
+        const code = generateExportCode(type, { shapeFnSrc: SHAPE_FN_SRC, colorFnSrc: COLOR_FN_SRC, config: CONFIG });
+        expect(code).toContain('let mouseX = -9999');
+        expect(code).toContain('let mouseStrength = 0');
+        expect(code).toContain('let waveStart = -999999');
+    });
+
     it('embeds current config JSON', () => {
         const code = generateExportCode('vanilla', { shapeFnSrc: SHAPE_FN_SRC, colorFnSrc: COLOR_FN_SRC, config: CONFIG });
         expect(code).toContain('"particleCount": 100');

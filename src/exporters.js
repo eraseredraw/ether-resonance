@@ -128,6 +128,12 @@ let customOffsets = null;
 let time = 0;
 let simSpeed = config.simSpeed;
 let particleSize = config.particleSize;
+let mouseX = -9999;
+let mouseY = -9999;
+let mouseStrength = 0;
+let waveX = 0;
+let waveY = 0;
+let waveStart = -999999;
 
 const tempColor = new (typeof THREE !== 'undefined' ? THREE.Color : class { setHSL(){} });
 

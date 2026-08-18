@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
     SHAPES, setShapeState, setFormScaleMod, setFormRotationSpeedMod,
-    setOffsetSource, regenerateOffsets, writeShapePosition, clearOffsets, getOffsets
+    setOffsetSource, regenerateOffsets, writeShapePosition, clearOffsets, getOffsets,
+    setMouseState, triggerWave
 } from '../src/shapes.js';
 
 function gen(shape, count = 10000, t = 0) {
@@ -93,5 +94,68 @@ describe('shape functions', () => {
         const m = (a) => Math.abs(a[0]) + Math.abs(a[1]) + Math.abs(a[2]);
         expect(m(full)).toBeGreaterThan(0);
         expect(m(half)).toBeLessThan(m(full));
+    });
+});
+
+describe('pointer interaction', () => {
+    beforeEach(() => {
+        setShapeState({ currentShape: 'sphere', formScale: 200, formRotationSpeed: 0, formChaos: 0 });
+        setMouseState(-9999, -9999, 0);
+        triggerWave(0, 0, -10); // wave expired
+    });
+
+    function centerDist(out, i) {
+        const o = i * 3;
+        return Math.sqrt(out[o] ** 2 + out[o + 1] ** 2 + out[o + 2] ** 2);
+    }
+
+    it('cursor repulsion pushes particles away from the pointer', () => {
+        // tiny field around origin; pointer at origin repels inward points outward
+        setShapeState({ currentShape: 'sphere', formScale: 8, formRotationSpeed: 0, formChaos: 0 });
+        const out = new Float32Array(2000 * 3);
+        for (let i = 0; i < 2000; i++) writeShapePosition(i, 2000, 0, out, i * 3);
+        const before = centerDist(out, 0);
+
+        setMouseState(0, 0, 1000);
+        for (let i = 0; i < 2000; i++) writeShapePosition(i, 2000, 0, out, i * 3);
+        const after = centerDist(out, 0);
+        expect(after).toBeGreaterThan(before);
+    });
+
+    it('no repulsion when mouseStrength is 0', () => {
+        setShapeState({ currentShape: 'sphere', formScale: 50, formRotationSpeed: 0, formChaos: 0 });
+        const a = new Float32Array(100 * 3);
+        const b = new Float32Array(100 * 3);
+        for (let i = 0; i < 100; i++) writeShapePosition(i, 100, 0, a, i * 3);
+        setMouseState(0, 0, 0);
+        for (let i = 0; i < 100; i++) writeShapePosition(i, 100, 0, b, i * 3);
+        expect(Array.from(b)).toEqual(Array.from(a));
+    });
+
+    it('click shockwave displaces particles during its lifetime', () => {
+        setShapeState({ currentShape: 'sphere', formScale: 40, formRotationSpeed: 0, formChaos: 0 });
+        const a = new Float32Array(200 * 3);
+        const b = new Float32Array(200 * 3);
+        for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0.1, a, i * 3);
+        triggerWave(0, 0, 0.1); // wave just fired
+        for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0.35, b, i * 3);
+        // ring now at r=65 world units, near sphere surface → moved
+        let moved = 0;
+        for (let i = 0; i < 200; i++) {
+            const o = i * 3;
+            const dx = a[o] - b[o];
+            if (Math.abs(dx) > 0.01) moved++;
+        }
+        expect(moved).toBeGreaterThan(5);
+    });
+
+    it('expired wave does not displace', () => {
+        setShapeState({ currentShape: 'sphere', formScale: 40, formRotationSpeed: 0, formChaos: 0 });
+        const a = new Float32Array(200 * 3);
+        const b = new Float32Array(200 * 3);
+        triggerWave(0, 0, -5);
+        for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0, a, i * 3);
+        for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0.5, b, i * 3);
+        expect(Array.from(b)).toEqual(Array.from(a));
     });
 });

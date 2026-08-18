@@ -530,6 +530,7 @@ button:disabled {
     touch-action: none;
     cursor: crosshair;
     mix-blend-mode: screen;
+    opacity: 0.35;
 }
 
 .draw-canvas.hidden { display: none; }

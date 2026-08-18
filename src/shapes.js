@@ -22,6 +22,30 @@ let customOffsets = null;
 let formScaleMod = 1;
 let formRotationSpeedMod = 1;
 
+// Pointer interaction (plain vars so exported code stays valid)
+let mouseX = -9999;
+let mouseY = -9999;
+let mouseStrength = 0;
+let waveX = 0;
+let waveY = 0;
+let waveStart = -999999;
+
+export function setMouseState(x, y, strength) {
+    mouseX = x;
+    mouseY = y;
+    mouseStrength = strength;
+}
+
+export function triggerWave(x, y, nowSec) {
+    waveX = x;
+    waveY = y;
+    waveStart = nowSec;
+}
+
+export function getPointerState() {
+    return { mouseX, mouseY, mouseStrength, waveStart, waveX, waveY };
+}
+
 let offsetSource = null;
 
 export function setShapeState(s) {
@@ -183,6 +207,44 @@ export function writeShapePosition(i, t, time, out, o) {
         x += (Math.random() - 0.5) * scale * chaosFactor;
         y += (Math.random() - 0.5) * scale * chaosFactor;
         z += (Math.random() - 0.5) * scale * chaosFactor;
+    }
+
+    // Cursor repulsion
+    if (mouseStrength > 0) {
+        const mdx = x - mouseX;
+        const mdy = y - mouseY;
+        const mdz = z;
+        const md2 = mdx * mdx + mdy * mdy + mdz * mdz;
+        const pushR = 150;
+        if (md2 < pushR * pushR && md2 > 1e-6) {
+            const md = Math.sqrt(md2);
+            const push = mouseStrength * (1 - md / pushR);
+            x += (mdx / md) * push;
+            y += (mdy / md) * push;
+            z += (mdz / md) * push;
+        }
+    }
+
+    // Click shockwave (radial ring, expands and fades)
+    if (time > waveStart) {
+        const elapsed = time - waveStart;
+        const waveLife = 0.9;
+        if (elapsed < waveLife) {
+            const waveR = elapsed * 260;
+            const wdx = x - waveX;
+            const wdy = y - waveY;
+            const wdz = z * 0.4;
+            const wd = Math.sqrt(wdx * wdx + wdy * wdy + wdz * wdz);
+            const ring = Math.abs(wd - waveR);
+            const ringW = 70;
+            if (ring < ringW && wd > 1e-6) {
+                const fade = 1 - elapsed / waveLife;
+                const push = 90 * fade * (1 - ring / ringW);
+                x += (wdx / wd) * push;
+                y += (wdy / wd) * push;
+                z += (wdz / wd) * push;
+            }
+        }
     }
 
     out[o] = x;

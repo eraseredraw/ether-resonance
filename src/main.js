@@ -10,36 +10,17 @@
 // ============================================
 import * as THREE from 'three';
 
-import {
-    SHAPES,
-    setOffsetSource, getOffsetSource, regenerateOffsets,
-    writeShapePosition,
-    buildPhotoSource,
-    setMouseState, setMouseMode
-} from './shapes.js';
-import { writeParticleColor } from './colors.js';
-import { AudioEngine } from './audio.js';
+import { SHAPES, setOffsetSource, regenerateOffsets, setMouseState, setMouseMode } from './shapes.js';
 import { DrawingPad } from './drawing.js';
-import {
-    downloadBlob, buildPlyText, buildObjText, buildGlbBuffer,
-    generateExportCode, exportImage, exportVideo
-} from './exporters.js';
+import { exportImage, exportVideo } from './exporters.js';
 import {
     S,
-    MAX_PARTICLES,
-    DEFAULT_CONFIG,
-    CLOUD_SHAPES,
-    collectConfig
+    DEFAULT_CONFIG
 } from './state.js';
 import * as render from './render.js';
 import * as ui from './ui.js';
 
 window.THREE = THREE;
-
-// Photo mode: layout source built on upload, plus the offset source to
-// restore when photo mode is switched back off.
-let photoSource = null;
-let prePhotoSource = null;
 
 // ============================================
 // INITIALIZATION
@@ -80,7 +61,7 @@ function init() {
             const m = location.hash.match(/#preset=([A-Za-z0-9+/=]+)/);
             if (m) {
                 const cfg = JSON.parse(decodeURIComponent(atob(m[1])));
-                applyConfig(cfg);
+                ui.applyConfig(cfg);
                 console.log('Preset restored from URL');
             }
         } catch (e) {
@@ -198,10 +179,10 @@ function setupEventListeners() {
     });
 
     // --- Audio ---
-    document.getElementById('btn-audio-mic')?.addEventListener('click', startMic);
-    document.getElementById('btn-audio-system')?.addEventListener('click', startSystemAudio);
-    document.getElementById('btn-audio-file')?.addEventListener('click', loadAudioTrack);
-    document.getElementById('btn-audio-stop')?.addEventListener('click', stopAudio);
+    document.getElementById('btn-audio-mic')?.addEventListener('click', ui.startMic);
+    document.getElementById('btn-audio-system')?.addEventListener('click', ui.startSystemAudio);
+    document.getElementById('btn-audio-file')?.addEventListener('click', ui.loadAudioTrack);
+    document.getElementById('btn-audio-stop')?.addEventListener('click', ui.stopAudio);
 
     document.getElementById('audio-intensity')?.addEventListener('input', e => {
         S.audioIntensity = parseFloat(e.target.value);
@@ -212,7 +193,7 @@ function setupEventListeners() {
         render.setTwinkle(e.target.checked);
     });
 
-    document.getElementById('btn-god-mode')?.addEventListener('click', toggleGodMode);
+    document.getElementById('btn-god-mode')?.addEventListener('click', ui.toggleGodMode);
 
     // Playback controls (file mode)
     document.getElementById('btn-play-pause-track')?.addEventListener('click', () => {
@@ -263,9 +244,9 @@ function setupEventListeners() {
     });
 
     // --- Export ---
-    document.getElementById('btn-platform-vanilla')?.addEventListener('click', () => exportCode('vanilla'));
-    document.getElementById('btn-platform-react')?.addEventListener('click', () => exportCode('react'));
-    document.getElementById('btn-platform-three')?.addEventListener('click', () => exportCode('three'));
+    document.getElementById('btn-platform-vanilla')?.addEventListener('click', () => ui.exportCode('vanilla'));
+    document.getElementById('btn-platform-react')?.addEventListener('click', () => ui.exportCode('react'));
+    document.getElementById('btn-platform-three')?.addEventListener('click', () => ui.exportCode('three'));
     document.getElementById('btn-platform-image')?.addEventListener('click', () => {
         const { renderer, composer, camera } = render.getRenderContext();
         exportImage(renderer, composer, camera, {
@@ -274,11 +255,11 @@ function setupEventListeners() {
             notify: ui.showNotification
         });
     });
-    document.getElementById('btn-platform-ply')?.addEventListener('click', () => exportPly());
-    document.getElementById('btn-platform-glb')?.addEventListener('click', () => exportGlb());
-    document.getElementById('btn-platform-obj')?.addEventListener('click', () => exportObj());
-    document.getElementById('btn-download-code')?.addEventListener('click', () => exportCode(document.getElementById('export-platform').value));
-    document.getElementById('btn-copy')?.addEventListener('click', copyCode);
+    document.getElementById('btn-platform-ply')?.addEventListener('click', () => ui.exportPly());
+    document.getElementById('btn-platform-glb')?.addEventListener('click', () => ui.exportGlb());
+    document.getElementById('btn-platform-obj')?.addEventListener('click', () => ui.exportObj());
+    document.getElementById('btn-download-code')?.addEventListener('click', () => ui.exportCode(document.getElementById('export-platform').value));
+    document.getElementById('btn-copy')?.addEventListener('click', ui.copyCode);
     document.getElementById('btn-record-video')?.addEventListener('click', () => {
         const { renderer } = render.getRenderContext();
         exportVideo(renderer, {
@@ -309,18 +290,18 @@ function setupEventListeners() {
     document.getElementById('btn-build-3d')?.addEventListener('click', ui.toggleLiveUpdate);
     document.getElementById('btn-play-pause')?.addEventListener('click', ui.togglePlayPause);
     document.getElementById('btn-copy-prompt')?.addEventListener('click', ui.copyPrompt);
-    document.getElementById('btn-save-local')?.addEventListener('click', () => savePreset(4, document.getElementById('btn-save-local')));
-    document.getElementById('btn-publish')?.addEventListener('click', publishPreset);
+    document.getElementById('btn-save-local')?.addEventListener('click', () => ui.savePreset(4, document.getElementById('btn-save-local')));
+    document.getElementById('btn-publish')?.addEventListener('click', ui.publishPreset);
     document.getElementById('btn-ai-guide')?.addEventListener('click', ui.toggleGuide);
     document.getElementById('btn-guide-close')?.addEventListener('click', () => { document.getElementById('guide').classList.add('hidden'); });
 
     // --- Upload ---
-    document.getElementById('btn-upload-image')?.addEventListener('click', () => uploadFile('image'));
-    document.getElementById('btn-upload-video')?.addEventListener('click', () => uploadFile('video'));
-    document.getElementById('btn-upload-3d')?.addEventListener('click', () => uploadFile('3d'));
-    document.getElementById('btn-upload-blueprint')?.addEventListener('click', () => uploadFile('blueprint'));
-    document.getElementById('btn-load-cloud')?.addEventListener('click', loadCloudShape);
-    document.getElementById('btn-photo')?.addEventListener('click', togglePhotoMode);
+    document.getElementById('btn-upload-image')?.addEventListener('click', () => ui.uploadFile('image'));
+    document.getElementById('btn-upload-video')?.addEventListener('click', () => ui.uploadFile('video'));
+    document.getElementById('btn-upload-3d')?.addEventListener('click', () => ui.uploadFile('3d'));
+    document.getElementById('btn-upload-blueprint')?.addEventListener('click', () => ui.uploadFile('blueprint'));
+    document.getElementById('btn-load-cloud')?.addEventListener('click', ui.loadCloudShape);
+    document.getElementById('btn-photo')?.addEventListener('click', ui.togglePhotoMode);
 
     // --- Drawing pad ---
     const drawingPadInstance = new DrawingPad(() => {
@@ -399,201 +380,15 @@ function setupDragAndDrop() {
         const f = files[0];
         const ext = (f.name.split('.').pop() || '').toLowerCase();
         if (f.type.startsWith('image/')) {
-            handleUpload('image', f);
+            ui.handleUpload('image', f);
         } else if (['obj', 'glb', 'gltf', 'ply'].includes(ext)) {
-            handleUpload('3d', f);
+            ui.handleUpload('3d', f);
         } else if (f.type.startsWith('audio/')) {
-            handleUpload('audio', f);
+            ui.handleUpload('audio', f);
         } else {
             ui.showNotification('UNSUPPORTED FILE TYPE');
         }
     });
-}
-
-// ============================================
-// AUDIO REACTIVITY
-// ============================================
-async function startMic() {
-    try {
-        const audioEngine = new AudioEngine();
-        await audioEngine.startMic();
-        render.setAudioEngine(audioEngine);
-        ui.setAudioStatus('MIC: ONLINE', 'on');
-        ui.showNotification('MIC ENABLED');
-    } catch (err) {
-        render.setAudioEngine(null);
-        ui.setAudioStatus('MIC ERROR');
-        ui.showNotification('MIC ACCESS DENIED');
-    }
-}
-
-async function startSystemAudio() {
-    try {
-        const audioEngine = new AudioEngine();
-        await audioEngine.startSystem();
-        render.setAudioEngine(audioEngine);
-        ui.setAudioStatus('SYSTEM AUDIO: ONLINE', 'on');
-        ui.showNotification('SYSTEM AUDIO CAPTURED');
-    } catch (err) {
-        render.setAudioEngine(null);
-        ui.setAudioStatus('SYSTEM CAPTURE CANCELLED');
-        ui.showNotification('SYSTEM CAPTURE FAILED');
-    }
-}
-
-async function loadAudioTrack() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'audio/*';
-    input.onchange = async e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        try {
-            const audioEngine = new AudioEngine();
-            await audioEngine.loadFile(file);
-            render.setAudioEngine(audioEngine);
-            ui.setAudioStatus('TRACK: ' + file.name, 'on');
-            document.getElementById('playback-row')?.classList.add('visible');
-            render.updatePlaybackUI();
-            ui.showNotification('AUDIO TRACK LOADED');
-        } catch (err) {
-            render.setAudioEngine(null);
-            ui.setAudioStatus('TRACK ERROR');
-            ui.showNotification('AUDIO LOAD FAILED');
-        }
-    };
-    input.click();
-}
-
-function stopAudio() {
-    const eng = render.getAudioEngine();
-    if (eng) eng.stop();
-    render.setAudioEngine(null);
-    ui.setAudioStatus('OFF');
-    document.getElementById('playback-row')?.classList.remove('visible');
-    ui.showNotification('AUDIO DISABLED');
-}
-
-function toggleGodMode() {
-    S.godModeActive = !S.godModeActive;
-    const btn = document.getElementById('btn-god-mode');
-    if (btn) {
-        btn.textContent = S.godModeActive ? '🤖 GOD: ON' : '🤖 God Mode';
-        btn.classList.toggle('active', S.godModeActive);
-    }
-    ui.showNotification(S.godModeActive ? 'GOD MODE ENABLED' : 'GOD MODE DISABLED');
-}
-
-function togglePhotoMode() {
-    if (!S.photoMode && !photoSource) {
-        ui.showNotification('PHOTO MODE: UPLOAD AN IMAGE FIRST');
-        return;
-    }
-    S.photoMode = !S.photoMode;
-    const btn = document.getElementById('btn-photo');
-    if (btn) {
-        btn.textContent = S.photoMode ? '📸 PHOTO: ON' : '📸 Photo Mode';
-        btn.classList.toggle('active', S.photoMode);
-    }
-    if (S.photoMode) {
-        prePhotoSource = getOffsetSource();
-        setOffsetSource(photoSource);
-    } else {
-        setOffsetSource(prePhotoSource);
-        prePhotoSource = null;
-    }
-    regenerateOffsets(S.particleCount);
-    S.colorsDirty = true;
-    render.updateParticles();
-    ui.showNotification(S.photoMode ? 'PHOTO MODE ENABLED' : 'PHOTO MODE OFF');
-}
-
-// ============================================
-// CONFIG (presets, URL, cloud)
-// ============================================
-function applyConfig(cfg) {
-    if (!cfg) return;
-    let countChanged = false;
-    if (typeof cfg.particleCount === 'number' && cfg.particleCount !== S.particleCount) {
-        S.particleCount = Math.min(MAX_PARTICLES, Math.max(1000, cfg.particleCount));
-        countChanged = true;
-    }
-    if (cfg.shape) S.currentShape = cfg.shape;
-    if (typeof cfg.formScale === 'number') S.formScale = cfg.formScale;
-    if (typeof cfg.formRotationSpeed === 'number') S.formRotationSpeed = cfg.formRotationSpeed;
-    if (typeof cfg.formChaos === 'number') S.formChaos = cfg.formChaos;
-    if (cfg.colorMode) S.colorMode = cfg.colorMode;
-    if (typeof cfg.hueOffset === 'number') S.hueOffset = cfg.hueOffset;
-    if (cfg.colorAnimation) S.colorAnimation = cfg.colorAnimation;
-    if (typeof cfg.bloomEnabled === 'boolean') S.bloomEnabled = cfg.bloomEnabled;
-    if (typeof cfg.bloomIntensity === 'number') S.bloomIntensity = cfg.bloomIntensity;
-    if (typeof cfg.trailEnabled === 'boolean') S.trailEnabled = cfg.trailEnabled;
-    if (typeof cfg.particleSize === 'number') S.particleSize = cfg.particleSize;
-    if (typeof cfg.simSpeed === 'number') S.simSpeed = cfg.simSpeed;
-    if (typeof cfg.autoRotate === 'boolean') S.autoRotate = cfg.autoRotate;
-    if (typeof cfg.rotateSpeed === 'number') S.rotateSpeed = cfg.rotateSpeed;
-    if (typeof cfg.twinkleEnabled === 'boolean') S.twinkleEnabled = cfg.twinkleEnabled;
-    if (typeof cfg.starfieldEnabled === 'boolean') S.starfieldEnabled = cfg.starfieldEnabled;
-    if (typeof cfg.aberrationEnabled === 'boolean') S.aberrationEnabled = cfg.aberrationEnabled;
-    if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
-
-    render.applyConfigRender(countChanged);
-    ui.updateUIFromState();
-}
-
-// ============================================
-// PRESETS
-// ============================================
-function savePreset(slot = 1, btn = null) {
-    const preset = collectConfig();
-    preset.savedAt = new Date().toISOString();
-    localStorage.setItem('ether-preset-' + slot, JSON.stringify(preset));
-
-    if (btn) {
-        const original = btn.textContent;
-        btn.textContent = '✅ Saved!';
-        btn.style.background = 'rgba(0, 255, 100, 0.4)';
-        setTimeout(() => {
-            btn.textContent = original;
-            btn.style.background = '';
-        }, 1000);
-    }
-    ui.showNotification(`PRESET ${slot} SAVED`);
-}
-
-function loadPreset(slot = 1) {
-    const saved = localStorage.getItem('ether-preset-' + slot);
-    if (!saved) {
-        ui.showNotification(`NO PRESET IN SLOT ${slot}`);
-        return;
-    }
-    try {
-        const preset = JSON.parse(saved);
-        applyConfig(preset);
-        ui.showNotification(`PRESET ${slot} LOADED`);
-    } catch (e) {
-        ui.showNotification('PRESET CORRUPTED');
-    }
-}
-
-function publishPreset() {
-    const b64 = btoa(encodeURIComponent(JSON.stringify(collectConfig())));
-    const url = location.origin + location.pathname + '#preset=' + b64;
-    navigator.clipboard.writeText(url).then(() => {
-        ui.showNotification('SHARE LINK COPIED!');
-    }).catch(() => {
-        ui.showNotification('COPY FAILED — URL: ' + url);
-    });
-}
-
-function loadCloudShape() {
-    const preset = CLOUD_SHAPES[Math.floor(Math.random() * CLOUD_SHAPES.length)];
-    const cfg = Object.assign({}, collectConfig(), preset);
-    if (cfg.shape !== S.currentShape) {
-        render.morphToShape(cfg.shape, 1.2);
-    }
-    applyConfig(cfg);
-    ui.showNotification('CLOUD SHAPE: ' + cfg.shape.toUpperCase());
 }
 
 // ============================================
@@ -616,179 +411,8 @@ function randomize() {
 }
 
 function reset() {
-    applyConfig(DEFAULT_CONFIG);
+    ui.applyConfig(DEFAULT_CONFIG);
     ui.showNotification('RESET TO DEFAULTS');
-}
-
-// ============================================
-// EXPORT: CODE
-// ============================================
-const SHAPE_FN_SRC = writeShapePosition.toString();
-const COLOR_FN_SRC = writeParticleColor.toString();
-
-function exportCode(type) {
-    const code = generateExportCode(type, {
-        shapeFnSrc: SHAPE_FN_SRC,
-        colorFnSrc: COLOR_FN_SRC,
-        config: collectConfig()
-    });
-    const ext = type === 'react' ? 'jsx' : type === 'vanilla' ? 'html' : 'js';
-    const name = type === 'vanilla' ? 'ether-resonance.html' : 'ether-resonance-' + type + '.' + ext;
-    downloadBlob(new Blob([code], { type: 'text/plain;charset=utf-8' }), name);
-    ui.showNotification('EXPORTED: ' + name);
-}
-
-function copyCode() {
-    const platform = document.getElementById('export-platform').value;
-    const code = generateExportCode(platform, {
-        shapeFnSrc: SHAPE_FN_SRC,
-        colorFnSrc: COLOR_FN_SRC,
-        config: collectConfig()
-    });
-    navigator.clipboard.writeText(code).then(() => {
-        ui.showNotification('CODE COPIED!');
-        const btn = document.getElementById('btn-copy');
-        const original = btn.textContent;
-        btn.textContent = '✅ Copied!';
-        setTimeout(() => { btn.textContent = original; }, 2000);
-    }).catch(err => {
-        ui.showNotification('COPY FAILED');
-    });
-}
-
-// ============================================
-// EXPORT: POINT CLOUDS
-// ============================================
-function exportPly() {
-    const H = render.getHandles();
-    if (!H.geometry) return;
-    const count = S.particleCount;
-    const pos = render.currentPositions(count);
-    downloadBlob(new Blob([buildPlyText(pos, count)], { type: 'text/plain' }), 'ether-resonance.ply');
-    ui.showNotification('PLY EXPORTED (' + count + ' VERTICES)');
-}
-
-function exportObj() {
-    const H = render.getHandles();
-    if (!H.geometry) return;
-    const count = S.particleCount;
-    const pos = render.currentPositions(count);
-    downloadBlob(new Blob([buildObjText(pos, count)], { type: 'text/plain' }), 'ether-resonance.obj');
-    ui.showNotification('OBJ EXPORTED (' + count + ' VERTICES)');
-}
-
-function exportGlb() {
-    const H = render.getHandles();
-    if (!H.geometry) return;
-    const count = S.particleCount;
-    const pos = render.currentPositions(count);
-    downloadBlob(new Blob([buildGlbBuffer(pos, count)], { type: 'model/gltf-binary' }), 'ether-resonance.glb');
-    ui.showNotification('GLB EXPORTED (' + count + ' VERTICES)');
-}
-
-// ============================================
-// UPLOADS
-// ============================================
-function uploadFile(type) {
-    if (type === 'video') {
-        ui.showNotification('VIDEO UPLOAD: USE AUDIO TRACK INSTEAD');
-        return;
-    }
-    const accept = type === '3d' ? '.obj,.glb,.gltf,.ply' : type === 'audio' ? 'audio/*' : 'image/*';
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    input.onchange = e => {
-        const file = e.target.files[0];
-        if (file) handleUpload(type, file);
-    };
-    input.click();
-}
-
-function loadImageFile(file) {
-    return new Promise((resolve, reject) => {
-        const url = URL.createObjectURL(file);
-        const img = new Image();
-        img.onload = () => { resolve(img); URL.revokeObjectURL(url); };
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('bad image')); };
-        img.src = url;
-    });
-}
-
-// ============================================
-// PHOTO SOURCE SAMPLING
-// ============================================
-// Grid that fits the particle budget while keeping the image aspect:
-//   w = floor(sqrt(count * aspect)),  h = floor(count / w)  →  w * h <= count
-// (one shrink step guards float rounding). All DOM/canvas work lives here in
-// main.js; the pure buildPhotoSource seam in shapes.js stays frame-source
-// agnostic so a live camera path can feed it a canvas grab every frame.
-function buildPhotoSourceFromImage(img, count) {
-    const iw = img.naturalWidth || img.width || 1;
-    const ih = img.naturalHeight || img.height || 1;
-    const aspect = iw / ih;
-    let w = Math.max(1, Math.floor(Math.sqrt(count * aspect)));
-    let h = Math.max(1, Math.floor(count / w));
-    while (w > 1 && w * h > count) {
-        w--;
-        h = Math.max(1, Math.floor(count / w));
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0, w, h);
-    return buildPhotoSource(ctx.getImageData(0, 0, w, h), w, h);
-}
-
-async function handleUpload(type, file) {
-    if (type === 'audio') {
-        try {
-            const audioEngine = new AudioEngine();
-            await audioEngine.loadFile(file);
-            render.setAudioEngine(audioEngine);
-            ui.setAudioStatus('TRACK: ' + file.name, 'on');
-            document.getElementById('playback-row')?.classList.add('visible');
-            render.updatePlaybackUI();
-            ui.showNotification('AUDIO TRACK LOADED');
-        } catch (err) {
-            render.setAudioEngine(null);
-            ui.setAudioStatus('TRACK ERROR');
-            ui.showNotification('AUDIO LOAD FAILED');
-        }
-        return;
-    }
-    if (type === 'image' || type === 'blueprint') {
-        try {
-            const img = await loadImageFile(file);
-            const w = 320;
-            const h = Math.max(1, Math.ceil(S.particleCount / w));
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(img, 0, 0, w, h);
-            const data = ctx.getImageData(0, 0, w, h).data;
-            setOffsetSource({ type: 'image', data: data, w: w, h: h });
-            // Photo-mode source from the SAME decoded image: resampled onto a
-            // grid derived from the particle budget (w * h <= particleCount).
-            photoSource = buildPhotoSourceFromImage(img, S.particleCount);
-            if (S.photoMode && photoSource) {
-                prePhotoSource = getOffsetSource();
-                setOffsetSource(photoSource);
-            }
-            regenerateOffsets(S.particleCount);
-            S.colorsDirty = true;
-            render.updateParticles();
-            ui.showNotification('IMAGE APPLIED: ' + file.name);
-        } catch (err) {
-            ui.showNotification('IMAGE LOAD FAILED');
-        }
-    } else if (type === '3d') {
-        render.loadModelOffsetSource(file,
-            () => ui.showNotification('MODEL APPLIED: ' + file.name),
-            message => ui.showNotification(message));
-    }
 }
 
 // ============================================
@@ -840,8 +464,8 @@ window.addEventListener('pagehide', () => render.setLoopRunning(false));
 // ============================================
 // GLOBAL EXPORTS (inline onclick handlers)
 // ============================================
-window.savePreset = savePreset;
-window.loadPreset = loadPreset;
+window.savePreset = ui.savePreset;
+window.loadPreset = ui.loadPreset;
 window.randomize = randomize;
 window.reset = reset;
 window.toggleFullscreen = ui.toggleFullscreen;
@@ -849,10 +473,10 @@ window.toggleHUD = ui.toggleHUD;
 window.toggleControls = ui.toggleControls;
 window.togglePlayPause = ui.togglePlayPause;
 window.toggleDrawingPad = ui.toggleDrawingPad;
-window.togglePhotoMode = togglePhotoMode;
+window.togglePhotoMode = ui.togglePhotoMode;
 window.showNotification = ui.showNotification;
-window.exportCode = exportCode;
-window.uploadFile = uploadFile;
+window.exportCode = ui.exportCode;
+window.uploadFile = ui.uploadFile;
 
 // ============================================
 // START

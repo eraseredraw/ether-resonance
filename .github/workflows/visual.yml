@@ -37,10 +37,10 @@ jobs:
             tests/diff.png
           if-no-files-found: ignore
 
-      - name: Explain a first failure
+      - name: Explain a failure
         if: failure()
         run: |
-          echo "tests/golden.png is the committed baseline. If it is missing this job"
-          echo "passes and only uploads tests/actual.png — download that artifact, save"
-          echo "it as tests/golden.png and commit; from then on every push is compared."
-          echo "If the diff is real and intended: node scripts/golden.mjs --update"
+          echo "tests/golden.png is the committed baseline, rendered by SwiftShader in"
+          echo "this very job (seed 1337, 200 frames, 960x540). A failing diff means the"
+          echo "frame changed: open the golden-frame artifact, inspect tests/diff.png,"
+          echo "and if the change is intended run: node scripts/golden.mjs --update"

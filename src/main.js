@@ -41,6 +41,8 @@ import {
     easeInOutCubic,
     collectConfig
 } from './state.js';
+import * as render from './render.js';
+import * as ui from './ui.js';
 
 window.THREE = THREE;
 
@@ -128,6 +130,9 @@ function createRenderer() {
 }
 
 function init() {
+    // Wire the render→UI bridge before anything can consume a hook.
+    render.setUiHooks(ui.uiHooks);
+
     try {
         // Respect OS "reduce motion" — no auto-orbit, no twinkle
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {

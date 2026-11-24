@@ -9,6 +9,10 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # upload-pages-artifact@v5 delegates to upload-artifact@v5, which stores
+  # run-scoped metadata the deploy job has to read back. Without actions:read
+  # the lookup returns zero artifacts instead of a permission error.
+  actions: read
 
 concurrency:
   group: pages

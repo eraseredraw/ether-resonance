@@ -21,7 +21,7 @@ import {
     setFormScaleMod, setFormRotationSpeedMod,
     setOffsetSource, getOffsetSource, regenerateOffsets,
     writePositionsToArray, writePhotoPositionsToArray,
-    setMouseState, setMouseMode, triggerWave
+    setMouseState, triggerWave
 } from './shapes.js';
 import {
     setColorState, setHueOffsetMod, setColorTime,

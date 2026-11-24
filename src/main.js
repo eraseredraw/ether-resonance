@@ -15,14 +15,14 @@ import {
     setOffsetSource, getOffsetSource, regenerateOffsets,
     writeShapePosition,
     buildPhotoSource,
-    setMouseState, setMouseMode, triggerWave
+    setMouseState, setMouseMode
 } from './shapes.js';
 import { writeParticleColor } from './colors.js';
 import { AudioEngine } from './audio.js';
 import { DrawingPad } from './drawing.js';
 import {
     downloadBlob, buildPlyText, buildObjText, buildGlbBuffer,
-    generateExportCode
+    generateExportCode, exportImage, exportVideo
 } from './exporters.js';
 import {
     S,
@@ -266,20 +266,26 @@ function setupEventListeners() {
     document.getElementById('btn-platform-vanilla')?.addEventListener('click', () => exportCode('vanilla'));
     document.getElementById('btn-platform-react')?.addEventListener('click', () => exportCode('react'));
     document.getElementById('btn-platform-three')?.addEventListener('click', () => exportCode('three'));
-    document.getElementById('btn-platform-image')?.addEventListener('click', () => exportImage(render.getRenderContext(), {
-        resolution: document.getElementById('export-resolution').value,
-        format: document.getElementById('export-format').value,
-        notify: showNotification
-    }));
+    document.getElementById('btn-platform-image')?.addEventListener('click', () => {
+        const { renderer, composer, camera } = render.getRenderContext();
+        exportImage(renderer, composer, camera, {
+            resolution: document.getElementById('export-resolution').value,
+            format: document.getElementById('export-format').value,
+            notify: showNotification
+        });
+    });
     document.getElementById('btn-platform-ply')?.addEventListener('click', () => exportPly());
     document.getElementById('btn-platform-glb')?.addEventListener('click', () => exportGlb());
     document.getElementById('btn-platform-obj')?.addEventListener('click', () => exportObj());
     document.getElementById('btn-download-code')?.addEventListener('click', () => exportCode(document.getElementById('export-platform').value));
     document.getElementById('btn-copy')?.addEventListener('click', copyCode);
-    document.getElementById('btn-record-video')?.addEventListener('click', () => exportVideo(render.getRenderContext(), {
-        duration: parseInt(document.getElementById('video-duration').value || '8'),
-        notify: showNotification
-    }));
+    document.getElementById('btn-record-video')?.addEventListener('click', () => {
+        const { renderer } = render.getRenderContext();
+        exportVideo(renderer, {
+            duration: parseInt(document.getElementById('video-duration').value || '8'),
+            notify: showNotification
+        });
+    });
 
     // --- Aspect ratio ---
     document.getElementById('btn-aspect-1-1')?.addEventListener('click', () => setAspectRatio('1:1'));

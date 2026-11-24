@@ -14,6 +14,7 @@ import { writeParticleColor } from './colors.js';
 import { AudioEngine } from './audio.js';
 import { DrawingPad } from './drawing.js';
 import { downloadBlob, buildPlyText, buildObjText, buildGlbBuffer, generateExportCode, exportImage, exportVideo } from './exporters.js';
+import * as camera from './camera.js';
 import * as render from './render.js';
 
 // ============================================
@@ -202,6 +203,7 @@ function updatePlaybackUI(playing, progress) {
 // restore when photo mode is switched back off.
 let photoSource = null;
 let prePhotoSource = null;
+let cameraActive = false;
 
 // ============================================
 // AUDIO REACTIVITY
@@ -299,6 +301,78 @@ function togglePhotoMode() {
     S.colorsDirty = true;
     render.updateParticles();
     showNotification(S.photoMode ? 'PHOTO MODE ENABLED' : 'PHOTO MODE OFF');
+}
+
+// ============================================
+// LIVE CAMERA
+// ============================================
+// camera.js grabs frames and hands over a 'photo' offset source ~30x/s;
+// this side owns photo-mode entry/exit and the diagnostic overlay. Entering
+// photo mode reuses the exact state changes of togglePhotoMode's ON branch;
+// stopping reuses its OFF branch via togglePhotoMode() itself, so an upload
+// made before starting the camera is restored afterwards.
+function updateCameraOverlay(st) {
+    const el = document.getElementById('camera-status');
+    if (!el) return;
+    if (!st) st = camera.getCameraStats();
+    if (!st.active && !st.error) {
+        el.style.display = 'none';
+        return;
+    }
+    el.style.display = 'block';
+    if (st.error) {
+        el.textContent = '📷 ' + st.error;
+        el.classList.add('err');
+    } else {
+        el.textContent = '📷 LIVE ' + st.w + '×' + st.h + ' @' + Math.round(st.fps) + 'fps · frames ' + st.frames;
+        el.classList.remove('err');
+    }
+}
+
+function onCameraFrame(src) {
+    photoSource = src;
+    if (!S.photoMode) {
+        // enter photo mode — same state changes as togglePhotoMode ON branch
+        S.photoMode = true;
+        const btn = document.getElementById('btn-photo');
+        if (btn) {
+            btn.textContent = '📸 PHOTO: ON';
+            btn.classList.add('active');
+        }
+        prePhotoSource = getOffsetSource();
+        showNotification('PHOTO MODE: LIVE CAMERA');
+    }
+    setOffsetSource(src);
+    regenerateOffsets(S.particleCount);
+    S.colorsDirty = true;
+}
+
+async function toggleCameraMode() {
+    const btn = document.getElementById('btn-camera');
+    if (!cameraActive) {
+        showNotification('CAMERA: REQUESTING…');
+        updateCameraOverlay();
+        const ok = await camera.startCamera(onCameraFrame, updateCameraOverlay);
+        if (!ok) {
+            showNotification('CAMERA FAILED — SEE OVERLAY');
+            updateCameraOverlay();
+            return;
+        }
+        cameraActive = true;
+        if (btn) {
+            btn.textContent = '📷 CAMERA: ON';
+            btn.classList.add('active');
+        }
+    } else {
+        camera.stopCamera();
+        cameraActive = false;
+        if (btn) {
+            btn.textContent = '📷 Camera';
+            btn.classList.remove('active');
+        }
+        if (S.photoMode) togglePhotoMode(); // unwind restores whatever was before the camera
+        updateCameraOverlay();
+    }
 }
 
 // ============================================
@@ -768,6 +842,7 @@ function setupEventListeners() {
     document.getElementById('btn-upload-blueprint')?.addEventListener('click', () => uploadFile('blueprint'));
     document.getElementById('btn-load-cloud')?.addEventListener('click', loadCloudShape);
     document.getElementById('btn-photo')?.addEventListener('click', togglePhotoMode);
+    document.getElementById('btn-camera')?.addEventListener('click', toggleCameraMode);
 
     // --- Drawing pad ---
     const drawingPadInstance = new DrawingPad(() => {
@@ -944,4 +1019,4 @@ export { showNotification, updateLoading, setAudioStatus, updateHudFormName, upd
     applyConfig, savePreset, loadPreset, publishPreset, loadCloudShape, exportCode, copyCode,
     exportPly, exportObj, exportGlb, uploadFile, handleUpload, loadImageFile, buildPhotoSourceFromImage ,
     setupEventListeners, setupDragAndDrop, randomize, setForm, setAspectRatio,
-    writeConfigToState, reset };
+    writeConfigToState, reset, toggleCameraMode };

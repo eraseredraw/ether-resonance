@@ -15,7 +15,8 @@ import {
     setShapeState, getShapeState,
     setFormScaleMod, setFormRotationSpeedMod,
     setOffsetSource, getOffsetSource, clearOffsets, regenerateOffsets,
-    writePositionsToArray, writeShapePosition,
+    writePositionsToArray, writePhotoPositionsToArray, writeShapePosition,
+    buildPhotoSource,
     setMouseState, setMouseMode, triggerWave
 } from './shapes.js';
 import {
@@ -67,6 +68,11 @@ let audioEngine = null;
 let morphStart = null;
 let morphTarget = null;
 
+// Photo mode: layout source built on upload, plus the offset source to
+// restore when photo mode is switched back off.
+let photoSource = null;
+let prePhotoSource = null;
+
 // Color recompute flag (colors only change on user input)
 
 // Drawing pad
@@ -94,6 +100,13 @@ function syncShapeState() {
 
 function syncColorState() {
     setColorState({ colorMode: S.colorMode, hueOffset: S.hueOffset, colorSaturation: S.colorSaturation, colorAnimation: S.colorAnimation });
+}
+
+// True only when photo mode is on AND the active offset source is a photo
+// layout — the exact condition that switches the render path over.
+function isPhotoActive() {
+    const src = getOffsetSource();
+    return !!(S.photoMode && src && src.type === 'photo');
 }
 
 // ============================================
@@ -241,8 +254,13 @@ function rebuildParticles() {
     syncShapeState();
     syncColorState();
     regenerateOffsets(S.particleCount);
-    writePositionsToArray(positions, S.particleCount, S.time);
-    writeColorsToArray(colors, S.particleCount, S.time);
+    if (isPhotoActive()) {
+        // Photo mode: one pass writes positions and pixel colours.
+        writePhotoPositionsToArray(positions, colors, S.particleCount, S.time);
+    } else {
+        writePositionsToArray(positions, S.particleCount, S.time);
+        writeColorsToArray(colors, S.particleCount, S.time);
+    }
     geometry.attributes.position.needsUpdate = true;
     geometry.attributes.color.needsUpdate = true;
     boundSphere.radius = S.formScale * 4 + 50;
@@ -260,13 +278,27 @@ function updateParticles() {
 
     syncShapeState();
     setColorTime(S.time);
-    writePositionsToArray(posAttr.array, S.particleCount, S.time);
-    posAttr.needsUpdate = true;
+    if (isPhotoActive()) {
+        // Photo mode: particles spell the image. Colours ride along only when
+        // dirty (source swap / user tweak) — the layout is static, so pushing
+        // count RGB triples every frame would be pure waste. Same buffer, same
+        // needsUpdate dance as the palette path below.
+        const colArr = S.colorsDirty ? colAttr.array : null;
+        writePhotoPositionsToArray(posAttr.array, colArr, S.particleCount, S.time);
+        posAttr.needsUpdate = true;
+        if (colArr) {
+            colAttr.needsUpdate = true;
+            S.colorsDirty = false;
+        }
+    } else {
+        writePositionsToArray(posAttr.array, S.particleCount, S.time);
+        posAttr.needsUpdate = true;
 
-    if (S.colorsDirty) {
-        writeColorsToArray(colAttr.array, S.particleCount, S.time);
-        colAttr.needsUpdate = true;
-        S.colorsDirty = false;
+        if (S.colorsDirty) {
+            writeColorsToArray(colAttr.array, S.particleCount, S.time);
+            colAttr.needsUpdate = true;
+            S.colorsDirty = false;
+        }
     }
 
     geometry.setDrawRange(0, S.particleCount);
@@ -302,7 +334,12 @@ function advanceMorph(dt) {
 
     // Live target: recompute with current S.time so there is no jump on completion
     syncShapeState();
-    writePositionsToArray(morphTarget, S.particleCount, S.time);
+    if (isPhotoActive()) {
+        // Morph lands on the photo layout instead of a parametric shape.
+        writePhotoPositionsToArray(morphTarget, null, S.particleCount, S.time);
+    } else {
+        writePositionsToArray(morphTarget, S.particleCount, S.time);
+    }
 
     S.morphProgress = Math.min(S.morphProgress + dt / S.morphDuration, 1);
     const eased = easeInOutCubic(S.morphProgress);
@@ -644,6 +681,7 @@ function setupEventListeners() {
     document.getElementById('btn-upload-3d')?.addEventListener('click', () => uploadFile('3d'));
     document.getElementById('btn-upload-blueprint')?.addEventListener('click', () => uploadFile('blueprint'));
     document.getElementById('btn-load-cloud')?.addEventListener('click', loadCloudShape);
+    document.getElementById('btn-photo')?.addEventListener('click', togglePhotoMode);
 
     // --- Drawing pad ---
     drawingPad = new DrawingPad(() => {
@@ -839,6 +877,30 @@ function toggleGodMode() {
         btn.classList.toggle('active', S.godModeActive);
     }
     showNotification(S.godModeActive ? 'GOD MODE ENABLED' : 'GOD MODE DISABLED');
+}
+
+function togglePhotoMode() {
+    if (!S.photoMode && !photoSource) {
+        showNotification('PHOTO MODE: UPLOAD AN IMAGE FIRST');
+        return;
+    }
+    S.photoMode = !S.photoMode;
+    const btn = document.getElementById('btn-photo');
+    if (btn) {
+        btn.textContent = S.photoMode ? '📸 PHOTO: ON' : '📸 Photo Mode';
+        btn.classList.toggle('active', S.photoMode);
+    }
+    if (S.photoMode) {
+        prePhotoSource = getOffsetSource();
+        setOffsetSource(photoSource);
+    } else {
+        setOffsetSource(prePhotoSource);
+        prePhotoSource = null;
+    }
+    regenerateOffsets(S.particleCount);
+    S.colorsDirty = true;
+    updateParticles();
+    showNotification(S.photoMode ? 'PHOTO MODE ENABLED' : 'PHOTO MODE OFF');
 }
 
 function setAudioStatus(text, cls) {
@@ -1252,6 +1314,32 @@ function loadImageFile(file) {
     });
 }
 
+// ============================================
+// PHOTO SOURCE SAMPLING
+// ============================================
+// Grid that fits the particle budget while keeping the image aspect:
+//   w = floor(sqrt(count * aspect)),  h = floor(count / w)  →  w * h <= count
+// (one shrink step guards float rounding). All DOM/canvas work lives here in
+// main.js; the pure buildPhotoSource seam in shapes.js stays frame-source
+// agnostic so a live camera path can feed it a canvas grab every frame.
+function buildPhotoSourceFromImage(img, count) {
+    const iw = img.naturalWidth || img.width || 1;
+    const ih = img.naturalHeight || img.height || 1;
+    const aspect = iw / ih;
+    let w = Math.max(1, Math.floor(Math.sqrt(count * aspect)));
+    let h = Math.max(1, Math.floor(count / w));
+    while (w > 1 && w * h > count) {
+        w--;
+        h = Math.max(1, Math.floor(count / w));
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    return buildPhotoSource(ctx.getImageData(0, 0, w, h), w, h);
+}
+
 async function handleUpload(type, file) {
     if (type === 'audio') {
         try {
@@ -1280,6 +1368,13 @@ async function handleUpload(type, file) {
             ctx.drawImage(img, 0, 0, w, h);
             const data = ctx.getImageData(0, 0, w, h).data;
             setOffsetSource({ type: 'image', data: data, w: w, h: h });
+            // Photo-mode source from the SAME decoded image: resampled onto a
+            // grid derived from the particle budget (w * h <= particleCount).
+            photoSource = buildPhotoSourceFromImage(img, S.particleCount);
+            if (S.photoMode && photoSource) {
+                prePhotoSource = getOffsetSource();
+                setOffsetSource(photoSource);
+            }
             regenerateOffsets(S.particleCount);
             S.colorsDirty = true;
             updateParticles();
@@ -1605,6 +1700,7 @@ window.toggleHUD = toggleHUD;
 window.toggleControls = toggleControls;
 window.togglePlayPause = togglePlayPause;
 window.toggleDrawingPad = toggleDrawingPad;
+window.togglePhotoMode = togglePhotoMode;
 window.showNotification = showNotification;
 window.exportCode = exportCode;
 window.uploadFile = uploadFile;

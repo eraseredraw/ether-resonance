@@ -42,6 +42,9 @@ export const S = {
     formRotationSpeed: 0.3,
     formChaos: 0,
 
+    // Photo mode: particles spell an image instead of a shape (opt-in)
+    photoMode: false,
+
     colorMode: 'ice',
     hueOffset: 0,
     colorSaturation: 0.8,

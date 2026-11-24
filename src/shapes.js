@@ -278,6 +278,12 @@ export function regenerateOffsets(count, brightnessFactor = 1) {
         customOffsets = null;
         return;
     }
+    if (offsetSource.type === 'photo') {
+        // Photo mode builds absolute layouts (see writePhotoPositionsToArray);
+        // there is no displacement to bake into customOffsets.
+        customOffsets = null;
+        return;
+    }
     customOffsets = new Float32Array(count * 3);
     if (offsetSource.type === 'image' || offsetSource.type === 'drawing') {
         const data = offsetSource.data;
@@ -309,4 +315,98 @@ export function regenerateOffsets(count, brightnessFactor = 1) {
 export function clearOffsets() {
     offsetSource = null;
     customOffsets = null;
+}
+
+// ============================================
+// PHOTO MODE (particles spell an uploaded image)
+// Pure layout math, no DOM. The envelope is resolved
+// once per call into module scratch, so the per-particle
+// pass stays allocation-free.
+// ============================================
+
+// Prepared photo layout (Zero GC — module scratch, mirrors the cached
+// math constants at the top of the file)
+let photoW = 0;
+let photoH = 0;
+let photoData = null;
+let photoWidth = 0;
+let photoHeight = 0;
+let photoDepth = 0;
+
+// Resolve the photo envelope for the active source. The rectangle keeps the
+// image aspect ratio and fits the same half-extent (formScale * formScaleMod)
+// the cube/plane forms use; depth is a fraction of it. Returns false when the
+// active source is not a photo, so callers keep the shape path untouched.
+function preparePhotoLayout() {
+    if (!offsetSource || offsetSource.type !== 'photo' || !offsetSource.data) return false;
+    const scale = formScale * formScaleMod;
+    const aspect = offsetSource.aspect > 0 ? offsetSource.aspect : offsetSource.w / offsetSource.h;
+    if (aspect >= 1) {
+        photoWidth = scale * 2;
+        photoHeight = photoWidth / aspect;
+    } else {
+        photoHeight = scale * 2;
+        photoWidth = photoHeight * aspect;
+    }
+    photoDepth = scale * 0.6;
+    photoW = offsetSource.w;
+    photoH = offsetSource.h;
+    photoData = offsetSource.data;
+    return true;
+}
+
+// Pure per-particle photo layout. Particle i maps onto pixel (px, py) of the
+// sampled grid WITHOUT row wrapping: the tail beyond w * h clamps to the last
+// row (the `% h` wrap of the displacement path above is what band-smeared it —
+// photo mode must not repeat it). Luminance becomes depth, the pixel's own RGB
+// becomes the particle colour so the photo stays recognisable instead of
+// collapsing into the palette. `w === 1 || h === 1` centres that axis rather
+// than dividing by a zero step. `colOut` may be null for positions-only passes.
+export function writePhotoLayout(i, w, h, data, width, height, depth, out, o, colOut, c) {
+    const px = i % w;
+    let py = (i / w) | 0;
+    if (py >= h) py = h - 1;
+    const idx = (py * w + px) * 4;
+    const r = data[idx];
+    const g = data[idx + 1];
+    const b = data[idx + 2];
+    const lum = (r + g + b) / 765;
+    const nx = w > 1 ? px / (w - 1) - 0.5 : 0;
+    const ny = h > 1 ? 0.5 - py / (h - 1) : 0;
+    out[o] = nx * width;
+    out[o + 1] = ny * height;
+    out[o + 2] = (lum - 0.5) * depth;
+    if (colOut) {
+        colOut[c] = r / 255;
+        colOut[c + 1] = g / 255;
+        colOut[c + 2] = b / 255;
+    }
+}
+
+// Fill positions AND colours from the photo source. Allocation-free per call.
+// `t` is accepted for parity with writePositionsToArray; the photo layout is
+// deliberately static in time (motion comes from the camera and the material).
+export function writePhotoPositionsToArray(arr, colors, count, t) {
+    if (!preparePhotoLayout()) return;
+    for (let i = 0; i < count; i++) {
+        const o = i * 3;
+        writePhotoLayout(i, photoW, photoH, photoData, photoWidth, photoHeight, photoDepth, arr, o, colors, o);
+    }
+}
+
+// Build a 'photo' offset source from an already-decoded frame. Pure seam for
+// any frame provider (upload today, live camera later): no DOM, no canvases,
+// no file access — the caller hands over an ImageData-shaped buffer
+// ({ data: Uint8ClampedArray, width, height }) plus explicit dimensions and
+// gets the source object back (null when the buffer is missing or short).
+// Cheap enough to call every frame: the only allocation is the source object
+// itself, writePhotoPositionsToArray reuses module scratch, and
+// regenerateOffsets keeps customOffsets null for photo sources (nothing is
+// re-allocated per call, dimensions or not).
+export function buildPhotoSource(imageData, width, height) {
+    const data = imageData && imageData.data;
+    const w = Math.max(1, width | 0);
+    const h = Math.max(1, height | 0);
+    if (!data || data.length < w * h * 4) return null;
+    return { type: 'photo', data: data, w: w, h: h, aspect: w / h };
 }

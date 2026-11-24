@@ -379,6 +379,9 @@ function setSceneToggle(name, enabled) {
     } else if (name === 'aberration') {
         S.aberrationEnabled = enabled;
         if (rgbShiftPass) rgbShiftPass.enabled = enabled;
+    } else if (name === 'ascii') {
+        S.asciiEnabled = enabled;
+        if (asciiPass) asciiPass.enabled = enabled;
     }
 }
 
@@ -427,6 +430,7 @@ function setupPostProcessing() {
     // ASCII pass LAST — it renders glyphs over the fully processed frame
     asciiPass = createAsciiPass(buildAsciiAtlas());
     asciiPass.enabled = S.asciiEnabled;
+    setAsciiScale(S.asciiScale || 1);
     composer.addPass(asciiPass);
     renderer.getDrawingBufferSize(asciiPass.uniforms.uResolution.value);
 
@@ -652,6 +656,14 @@ function getDrawingPad() {
 function setParticleSize(n) {
     S.particleSize = n;
     updateParticleMaterial(material, { size: S.particleSize });
+}
+
+// ASCII cell size in DEVICE pixels (the uResolution uniform is the drawing
+// buffer, so DPR is already baked in). Base cell 18x22 keeps the monospace
+// glyph aspect; the slider scales both axes together.
+function setAsciiScale(v) {
+    S.asciiScale = v;
+    if (asciiPass) asciiPass.uniforms.uCell.value.set(18 * v, 22 * v);
 }
 
 function setTwinkle(b) {
@@ -912,6 +924,7 @@ export {
     setDrawingPad,
     getDrawingPad,
     setParticleSize,
+    setAsciiScale,
     setTwinkle,
     setBloomEnabled,
     setBloomIntensity,

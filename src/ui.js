@@ -9,10 +9,11 @@
 // (toggleDrawingPad / selectTool read render.getDrawingPad()).
 // ============================================
 import { S, MAX_PARTICLES, CLOUD_SHAPES, collectConfig } from './state.js';
-import { getOffsetSource, setOffsetSource, regenerateOffsets, buildPhotoSource, writeShapePosition } from './shapes.js';
+import { SHAPES, setMouseState, setMouseMode, getOffsetSource, setOffsetSource, regenerateOffsets, buildPhotoSource, writeShapePosition } from './shapes.js';
 import { writeParticleColor } from './colors.js';
 import { AudioEngine } from './audio.js';
-import { downloadBlob, buildPlyText, buildObjText, buildGlbBuffer, generateExportCode } from './exporters.js';
+import { DrawingPad } from './drawing.js';
+import { downloadBlob, buildPlyText, buildObjText, buildGlbBuffer, generateExportCode, exportImage, exportVideo } from './exporters.js';
 import * as render from './render.js';
 
 // ============================================
@@ -559,6 +560,333 @@ async function handleUpload(type, file) {
     }
 }
 
+function setupEventListeners() {
+    const H = render.getHandles();
+
+    // --- Simulation ---
+    const slider = document.getElementById('particle-count-slider');
+    slider.addEventListener('input', e => {
+        const newCount = parseInt(e.target.value);
+        if (newCount !== S.particleCount) {
+            S.particleCount = newCount;
+            render.rebuildParticles();
+        }
+        document.getElementById('particle-count-value').textContent =
+            (S.particleCount / 1000).toFixed(0) + 'K';
+        document.getElementById('particle-count').textContent = S.particleCount.toLocaleString();
+    });
+
+    document.getElementById('particle-size').addEventListener('input', e => {
+        render.setParticleSize(parseFloat(e.target.value));
+        document.getElementById('particle-size-value').textContent = e.target.value;
+    });
+
+    document.getElementById('sim-speed').addEventListener('input', e => {
+        S.simSpeed = parseFloat(e.target.value);
+        document.getElementById('sim-speed-value').textContent = e.target.value;
+    });
+
+    document.getElementById('bloom-toggle').addEventListener('change', e => {
+        render.setBloomEnabled(e.target.checked);
+    });
+
+    document.getElementById('bloom-intensity').addEventListener('input', e => {
+        render.setBloomIntensity(parseFloat(e.target.value));
+        document.getElementById('bloom-intensity-value').textContent = e.target.value;
+    });
+
+    document.getElementById('trail-toggle').addEventListener('change', e => {
+        S.trailEnabled = e.target.checked;
+    });
+
+    // --- Form ---
+    document.getElementById('shape-select').addEventListener('change', e => {
+        render.morphToShape(e.target.value, 1.0);
+        updateHudFormName();
+    });
+
+    document.getElementById('form-scale').addEventListener('input', e => {
+        S.formScale = parseInt(e.target.value);
+        document.getElementById('form-scale-value').textContent = e.target.value;
+    });
+
+    document.getElementById('form-rotation').addEventListener('input', e => {
+        S.formRotationSpeed = parseFloat(e.target.value);
+        document.getElementById('form-rotation-value').textContent = e.target.value;
+    });
+
+    document.getElementById('form-chaos').addEventListener('input', e => {
+        S.formChaos = parseInt(e.target.value);
+        document.getElementById('form-chaos-value').textContent = e.target.value;
+    });
+
+    // --- Color ---
+    document.getElementById('color-mode').addEventListener('change', e => {
+        S.colorMode = e.target.value;
+        S.colorsDirty = true;
+        render.updateParticles();
+    });
+
+    document.getElementById('hue-offset').addEventListener('input', e => {
+        S.hueOffset = parseInt(e.target.value);
+        document.getElementById('hue-offset-value').textContent = e.target.value + '°';
+        S.colorsDirty = true;
+        render.updateParticles();
+    });
+
+    document.getElementById('anim-select').addEventListener('change', e => {
+        S.colorAnimation = e.target.value;
+        S.colorsDirty = true;
+        render.updateParticles();
+    });
+
+    // --- Audio ---
+    document.getElementById('btn-audio-mic')?.addEventListener('click', startMic);
+    document.getElementById('btn-audio-system')?.addEventListener('click', startSystemAudio);
+    document.getElementById('btn-audio-file')?.addEventListener('click', loadAudioTrack);
+    document.getElementById('btn-audio-stop')?.addEventListener('click', stopAudio);
+
+    document.getElementById('audio-intensity')?.addEventListener('input', e => {
+        S.audioIntensity = parseFloat(e.target.value);
+        document.getElementById('audio-intensity-value').textContent = S.audioIntensity.toFixed(2);
+    });
+
+    document.getElementById('twinkle-toggle')?.addEventListener('change', e => {
+        render.setTwinkle(e.target.checked);
+    });
+
+    document.getElementById('btn-god-mode')?.addEventListener('click', toggleGodMode);
+
+    // Playback controls (file mode)
+    document.getElementById('btn-play-pause-track')?.addEventListener('click', () => {
+        const eng = render.getAudioEngine();
+        if (eng) {
+            eng.togglePlay();
+            render.updatePlaybackUI();
+        }
+    });
+    document.getElementById('audio-seek')?.addEventListener('input', e => {
+        const eng = H.audioEngine;
+        if (eng) eng.setSeek(parseFloat(e.target.value) / 100);
+    });
+    document.getElementById('audio-volume')?.addEventListener('input', e => {
+        const eng = H.audioEngine;
+        if (eng) eng.setVolume(parseFloat(e.target.value) / 100);
+    });
+
+    // --- Camera ---
+    document.getElementById('rotate-speed').addEventListener('input', e => {
+        render.setRotateSpeed(parseFloat(e.target.value));
+        document.getElementById('rotate-speed-value').textContent = e.target.value;
+    });
+
+    document.getElementById('auto-rotate').addEventListener('change', e => {
+        render.setAutoRotate(e.target.checked);
+    });
+
+    // --- Camera presets ---
+    document.getElementById('btn-cam-front')?.addEventListener('click', () => render.setCameraPreset('front'));
+    document.getElementById('btn-cam-top')?.addEventListener('click', () => render.setCameraPreset('top'));
+    document.getElementById('btn-cam-orbit')?.addEventListener('click', () => render.setCameraPreset('orbit'));
+
+    // --- Scene toggles ---
+    document.getElementById('starfield-toggle')?.addEventListener('change', e => render.setSceneToggle('starfield', e.target.checked));
+    document.getElementById('aberration-toggle')?.addEventListener('change', e => render.setSceneToggle('aberration', e.target.checked));
+
+    // --- Pointer FX (magnet/repulse/wave), off by default ---
+    document.getElementById('pointerfx-toggle')?.addEventListener('change', e => {
+        S.pointerFxEnabled = e.target.checked;
+        if (!S.pointerFxEnabled) setMouseState(-9999, -9999, 0);
+    });
+
+    // --- Pointer magnet (attract vs repulse) ---
+    document.getElementById('magnet-toggle')?.addEventListener('change', e => {
+        S.pointerMagnet = e.target.checked;
+        setMouseMode(S.pointerMagnet ? 'attract' : 'repulse');
+    });
+
+    // --- Export ---
+    document.getElementById('btn-platform-vanilla')?.addEventListener('click', () => exportCode('vanilla'));
+    document.getElementById('btn-platform-react')?.addEventListener('click', () => exportCode('react'));
+    document.getElementById('btn-platform-three')?.addEventListener('click', () => exportCode('three'));
+    document.getElementById('btn-platform-image')?.addEventListener('click', () => {
+        const { renderer, composer, camera } = render.getRenderContext();
+        exportImage(renderer, composer, camera, {
+            resolution: document.getElementById('export-resolution').value,
+            format: document.getElementById('export-format').value,
+            notify: showNotification
+        });
+    });
+    document.getElementById('btn-platform-ply')?.addEventListener('click', () => exportPly());
+    document.getElementById('btn-platform-glb')?.addEventListener('click', () => exportGlb());
+    document.getElementById('btn-platform-obj')?.addEventListener('click', () => exportObj());
+    document.getElementById('btn-download-code')?.addEventListener('click', () => exportCode(document.getElementById('export-platform').value));
+    document.getElementById('btn-copy')?.addEventListener('click', copyCode);
+    document.getElementById('btn-record-video')?.addEventListener('click', () => {
+        const { renderer } = render.getRenderContext();
+        exportVideo(renderer, {
+            duration: parseInt(document.getElementById('video-duration').value || '8'),
+            notify: showNotification
+        });
+    });
+
+    // --- Aspect ratio ---
+    document.getElementById('btn-aspect-1-1')?.addEventListener('click', () => setAspectRatio('1:1'));
+    document.getElementById('btn-aspect-16-9')?.addEventListener('click', () => setAspectRatio('16:9'));
+    document.getElementById('btn-aspect-9-16')?.addEventListener('click', () => setAspectRatio('9:16'));
+    document.getElementById('btn-aspect-4-3')?.addEventListener('click', () => setAspectRatio('4:3'));
+    document.getElementById('btn-aspect-3-4')?.addEventListener('click', () => setAspectRatio('3:4'));
+    document.getElementById('btn-aspect-custom')?.addEventListener('click', () => setAspectRatio('custom'));
+
+    // --- Form buttons ---
+    document.getElementById('btn-form-sphere')?.addEventListener('click', () => setForm('sphere'));
+    document.getElementById('btn-form-cube')?.addEventListener('click', () => setForm('cube'));
+    document.getElementById('btn-form-helix')?.addEventListener('click', () => setForm('helix'));
+    document.getElementById('btn-form-donut')?.addEventListener('click', () => setForm('donut'));
+    document.getElementById('btn-form-ribbon')?.addEventListener('click', () => setForm('ribbon'));
+    document.getElementById('btn-form-vortex')?.addEventListener('click', () => setForm('vortex'));
+
+    // --- Actions ---
+    document.getElementById('btn-initialize')?.addEventListener('click', initializeNeuralLink);
+    document.getElementById('btn-live-update')?.addEventListener('click', toggleLiveUpdate);
+    document.getElementById('btn-build-3d')?.addEventListener('click', toggleLiveUpdate);
+    document.getElementById('btn-play-pause')?.addEventListener('click', togglePlayPause);
+    document.getElementById('btn-copy-prompt')?.addEventListener('click', copyPrompt);
+    document.getElementById('btn-save-local')?.addEventListener('click', () => savePreset(4, document.getElementById('btn-save-local')));
+    document.getElementById('btn-publish')?.addEventListener('click', publishPreset);
+    document.getElementById('btn-ai-guide')?.addEventListener('click', toggleGuide);
+    document.getElementById('btn-guide-close')?.addEventListener('click', () => { document.getElementById('guide').classList.add('hidden'); });
+
+    // --- Upload ---
+    document.getElementById('btn-upload-image')?.addEventListener('click', () => uploadFile('image'));
+    document.getElementById('btn-upload-video')?.addEventListener('click', () => uploadFile('video'));
+    document.getElementById('btn-upload-3d')?.addEventListener('click', () => uploadFile('3d'));
+    document.getElementById('btn-upload-blueprint')?.addEventListener('click', () => uploadFile('blueprint'));
+    document.getElementById('btn-load-cloud')?.addEventListener('click', loadCloudShape);
+    document.getElementById('btn-photo')?.addEventListener('click', togglePhotoMode);
+
+    // --- Drawing pad ---
+    const drawingPadInstance = new DrawingPad(() => {
+        const pad = render.getDrawingPad();
+        setOffsetSource(pad.toOffsetSource(S.particleCount));
+        regenerateOffsets(S.particleCount);
+        S.colorsDirty = true;
+        render.updateParticles();
+        showNotification('DRAWING APPLIED');
+    });
+    render.setDrawingPad(drawingPadInstance);
+
+    document.getElementById('drawing-pad-toggle')?.addEventListener('click', toggleDrawingPad);
+    document.getElementById('btn-open-drawing')?.addEventListener('click', () => { H.drawingPad.clear(); });
+    document.getElementById('btn-pen')?.addEventListener('click', () => selectTool('pen'));
+    document.getElementById('btn-eraser')?.addEventListener('click', () => selectTool('eraser'));
+    document.getElementById('btn-undo')?.addEventListener('click', () => H.drawingPad.undo());
+    document.getElementById('btn-redo')?.addEventListener('click', () => H.drawingPad.redo());
+    document.getElementById('btn-sym')?.addEventListener('click', () => H.drawingPad.setSymmetry(!H.drawingPad.symmetry));
+    document.getElementById('btn-pulsar')?.addEventListener('click', () => H.drawingPad.setPulsar(!H.drawingPad.pulsar));
+    document.getElementById('btn-live-update')?.addEventListener('click', () => {
+        H.drawingPad.setLiveApply(!H.drawingPad.liveApply);
+        const btn = document.getElementById('btn-live-update');
+        btn.textContent = H.drawingPad.liveApply ? '⚡ LIVE: ON' : '⚡ LIVE: OFF';
+    });
+    document.getElementById('draw-brush-size')?.addEventListener('input', e => {
+        H.drawingPad.setBrushSize(e.target.value);
+        document.getElementById('draw-brush-size-value').textContent = e.target.value;
+    });
+
+    // --- Panel toggles ---
+    document.getElementById('hud-toggle')?.addEventListener('click', toggleHUD);
+    document.getElementById('controls-toggle')?.addEventListener('click', toggleControls);
+
+    // --- Keyboard ---
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            toggleHUD();
+            toggleControls();
+        } else if (e.key === ' ' && !e.repeat) {
+            e.preventDefault();
+            togglePlayPause();
+        } else if ((e.key === 'r' || e.key === 'R') && !e.repeat) {
+            randomize();
+        } else if ((e.key === 'c' || e.key === 'C') && !e.repeat) {
+            render.resetCamera();
+        }
+    });
+}
+
+function setupDragAndDrop() {
+    const overlay = document.getElementById('drop-overlay');
+    if (!overlay) return;
+
+    let dragDepth = 0;
+    window.addEventListener('dragenter', e => {
+        e.preventDefault();
+        dragDepth++;
+        overlay.classList.add('active');
+    });
+    window.addEventListener('dragleave', () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) overlay.classList.remove('active');
+    });
+    window.addEventListener('dragover', e => e.preventDefault());
+    window.addEventListener('drop', e => {
+        e.preventDefault();
+        dragDepth = 0;
+        overlay.classList.remove('active');
+        const files = e.dataTransfer && e.dataTransfer.files;
+        if (!files || !files.length) return;
+        const f = files[0];
+        const ext = (f.name.split('.').pop() || '').toLowerCase();
+        if (f.type.startsWith('image/')) {
+            handleUpload('image', f);
+        } else if (['obj', 'glb', 'gltf', 'ply'].includes(ext)) {
+            handleUpload('3d', f);
+        } else if (f.type.startsWith('audio/')) {
+            handleUpload('audio', f);
+        } else {
+            showNotification('UNSUPPORTED FILE TYPE');
+        }
+    });
+}
+
+function randomize() {
+    const newShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+    if (newShape !== S.currentShape) {
+        render.morphToShape(newShape, 1.0);
+    }
+    S.formScale = 100 + Math.random() * 150;
+    S.formChaos = Math.floor(Math.random() * 50);
+    S.hueOffset = Math.floor(Math.random() * 360);
+    S.colorMode = ['rainbow', 'hue', 'plasma', 'ocean', 'fire', 'ice', 'cyan', 'gold', 'neon', 'white'][Math.floor(Math.random() * 10)];
+    S.colorAnimation = ['static', 'scroll', 'wave', 'pulse'][Math.floor(Math.random() * 4)];
+    S.colorsDirty = true;
+    render.updateParticles();
+    updateUIFromState();
+    showNotification('RANDOMIZED');
+}
+
+function setForm(shape) {
+    if (shape !== S.currentShape) {
+        render.morphToShape(shape, 1.0);
+    }
+    document.getElementById('shape-select').value = shape;
+    updateHudFormName();
+}
+
+function setAspectRatio(ratio) {
+    if (ratio === 'custom') {
+        S.activeAspect = null;
+        render.applyAspect();
+        showNotification('FULL WINDOW');
+        return;
+    }
+    const [w, h] = ratio.split(':').map(Number);
+    S.activeAspect = w / h;
+    render.applyAspect();
+    showNotification(`ASPECT RATIO: ${ratio}`);
+}
+
 // ============================================
 // UI HOOKS — 8 methods consumed by render.js
 // Exact DOM bodies per Part 1 of the refactor spec; render.js never touches
@@ -602,4 +930,5 @@ export { showNotification, updateLoading, setAudioStatus, updateHudFormName, upd
     togglePlayPause, copyPrompt, toggleGuide, toggleDrawingPad, selectTool, toggleFullscreen,
     startMic, startSystemAudio, loadAudioTrack, stopAudio, toggleGodMode, togglePhotoMode,
     applyConfig, savePreset, loadPreset, publishPreset, loadCloudShape, exportCode, copyCode,
-    exportPly, exportObj, exportGlb, uploadFile, handleUpload, loadImageFile, buildPhotoSourceFromImage };
+    exportPly, exportObj, exportGlb, uploadFile, handleUpload, loadImageFile, buildPhotoSourceFromImage ,
+    setupEventListeners, setupDragAndDrop, randomize, setForm, setAspectRatio };

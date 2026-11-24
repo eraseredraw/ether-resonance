@@ -55,25 +55,25 @@ function init() {
             S.twinkleEnabled = false;
         }
 
-        updateLoading(10, 'Creating scene...');
+        ui.updateLoading(10, 'Creating scene...');
         render.initScene();
 
-        updateLoading(30, 'Creating particles...');
+        ui.updateLoading(30, 'Creating particles...');
         render.rebuildParticles();
 
-        updateLoading(60, 'Sowing the stars...');
+        ui.updateLoading(60, 'Sowing the stars...');
         render.createStarfieldInScene();
 
-        updateLoading(70, 'Setting up post-processing...');
+        ui.updateLoading(70, 'Setting up post-processing...');
         render.setupPostProcessing();
 
-        updateLoading(90, 'Finalizing...');
+        ui.updateLoading(90, 'Finalizing...');
         setupEventListeners();
         render.attachCanvasListeners();
         setupDragAndDrop();
 
         S.targetZoomDistance = render.getHandles().camera.position.length();
-        updateHudFormName();
+        ui.updateHudFormName();
 
         // Restore preset from URL hash (#preset=...)
         try {
@@ -87,7 +87,7 @@ function init() {
             console.warn('Invalid preset hash:', e);
         }
 
-        updateLoading(100, 'Ready!');
+        ui.updateLoading(100, 'Ready!');
         setTimeout(() => {
             document.getElementById('loading').classList.add('hidden');
         }, 300);
@@ -159,7 +159,7 @@ function setupEventListeners() {
     // --- Form ---
     document.getElementById('shape-select').addEventListener('change', e => {
         render.morphToShape(e.target.value, 1.0);
-        updateHudFormName();
+        ui.updateHudFormName();
     });
 
     document.getElementById('form-scale').addEventListener('input', e => {
@@ -271,7 +271,7 @@ function setupEventListeners() {
         exportImage(renderer, composer, camera, {
             resolution: document.getElementById('export-resolution').value,
             format: document.getElementById('export-format').value,
-            notify: showNotification
+            notify: ui.showNotification
         });
     });
     document.getElementById('btn-platform-ply')?.addEventListener('click', () => exportPly());
@@ -283,7 +283,7 @@ function setupEventListeners() {
         const { renderer } = render.getRenderContext();
         exportVideo(renderer, {
             duration: parseInt(document.getElementById('video-duration').value || '8'),
-            notify: showNotification
+            notify: ui.showNotification
         });
     });
 
@@ -304,14 +304,14 @@ function setupEventListeners() {
     document.getElementById('btn-form-vortex')?.addEventListener('click', () => setForm('vortex'));
 
     // --- Actions ---
-    document.getElementById('btn-initialize')?.addEventListener('click', initializeNeuralLink);
-    document.getElementById('btn-live-update')?.addEventListener('click', toggleLiveUpdate);
-    document.getElementById('btn-build-3d')?.addEventListener('click', toggleLiveUpdate);
-    document.getElementById('btn-play-pause')?.addEventListener('click', togglePlayPause);
-    document.getElementById('btn-copy-prompt')?.addEventListener('click', copyPrompt);
+    document.getElementById('btn-initialize')?.addEventListener('click', ui.initializeNeuralLink);
+    document.getElementById('btn-live-update')?.addEventListener('click', ui.toggleLiveUpdate);
+    document.getElementById('btn-build-3d')?.addEventListener('click', ui.toggleLiveUpdate);
+    document.getElementById('btn-play-pause')?.addEventListener('click', ui.togglePlayPause);
+    document.getElementById('btn-copy-prompt')?.addEventListener('click', ui.copyPrompt);
     document.getElementById('btn-save-local')?.addEventListener('click', () => savePreset(4, document.getElementById('btn-save-local')));
     document.getElementById('btn-publish')?.addEventListener('click', publishPreset);
-    document.getElementById('btn-ai-guide')?.addEventListener('click', toggleGuide);
+    document.getElementById('btn-ai-guide')?.addEventListener('click', ui.toggleGuide);
     document.getElementById('btn-guide-close')?.addEventListener('click', () => { document.getElementById('guide').classList.add('hidden'); });
 
     // --- Upload ---
@@ -329,14 +329,14 @@ function setupEventListeners() {
         regenerateOffsets(S.particleCount);
         S.colorsDirty = true;
         render.updateParticles();
-        showNotification('DRAWING APPLIED');
+        ui.showNotification('DRAWING APPLIED');
     });
     render.setDrawingPad(drawingPadInstance);
 
-    document.getElementById('drawing-pad-toggle')?.addEventListener('click', toggleDrawingPad);
+    document.getElementById('drawing-pad-toggle')?.addEventListener('click', ui.toggleDrawingPad);
     document.getElementById('btn-open-drawing')?.addEventListener('click', () => { H.drawingPad.clear(); });
-    document.getElementById('btn-pen')?.addEventListener('click', () => selectTool('pen'));
-    document.getElementById('btn-eraser')?.addEventListener('click', () => selectTool('eraser'));
+    document.getElementById('btn-pen')?.addEventListener('click', () => ui.selectTool('pen'));
+    document.getElementById('btn-eraser')?.addEventListener('click', () => ui.selectTool('eraser'));
     document.getElementById('btn-undo')?.addEventListener('click', () => H.drawingPad.undo());
     document.getElementById('btn-redo')?.addEventListener('click', () => H.drawingPad.redo());
     document.getElementById('btn-sym')?.addEventListener('click', () => H.drawingPad.setSymmetry(!H.drawingPad.symmetry));
@@ -352,18 +352,18 @@ function setupEventListeners() {
     });
 
     // --- Panel toggles ---
-    document.getElementById('hud-toggle')?.addEventListener('click', toggleHUD);
-    document.getElementById('controls-toggle')?.addEventListener('click', toggleControls);
+    document.getElementById('hud-toggle')?.addEventListener('click', ui.toggleHUD);
+    document.getElementById('controls-toggle')?.addEventListener('click', ui.toggleControls);
 
     // --- Keyboard ---
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Tab') {
             e.preventDefault();
-            toggleHUD();
-            toggleControls();
+            ui.toggleHUD();
+            ui.toggleControls();
         } else if (e.key === ' ' && !e.repeat) {
             e.preventDefault();
-            togglePlayPause();
+            ui.togglePlayPause();
         } else if ((e.key === 'r' || e.key === 'R') && !e.repeat) {
             randomize();
         } else if ((e.key === 'c' || e.key === 'C') && !e.repeat) {
@@ -405,7 +405,7 @@ function setupDragAndDrop() {
         } else if (f.type.startsWith('audio/')) {
             handleUpload('audio', f);
         } else {
-            showNotification('UNSUPPORTED FILE TYPE');
+            ui.showNotification('UNSUPPORTED FILE TYPE');
         }
     });
 }
@@ -418,12 +418,12 @@ async function startMic() {
         const audioEngine = new AudioEngine();
         await audioEngine.startMic();
         render.setAudioEngine(audioEngine);
-        setAudioStatus('MIC: ONLINE', 'on');
-        showNotification('MIC ENABLED');
+        ui.setAudioStatus('MIC: ONLINE', 'on');
+        ui.showNotification('MIC ENABLED');
     } catch (err) {
         render.setAudioEngine(null);
-        setAudioStatus('MIC ERROR');
-        showNotification('MIC ACCESS DENIED');
+        ui.setAudioStatus('MIC ERROR');
+        ui.showNotification('MIC ACCESS DENIED');
     }
 }
 
@@ -432,12 +432,12 @@ async function startSystemAudio() {
         const audioEngine = new AudioEngine();
         await audioEngine.startSystem();
         render.setAudioEngine(audioEngine);
-        setAudioStatus('SYSTEM AUDIO: ONLINE', 'on');
-        showNotification('SYSTEM AUDIO CAPTURED');
+        ui.setAudioStatus('SYSTEM AUDIO: ONLINE', 'on');
+        ui.showNotification('SYSTEM AUDIO CAPTURED');
     } catch (err) {
         render.setAudioEngine(null);
-        setAudioStatus('SYSTEM CAPTURE CANCELLED');
-        showNotification('SYSTEM CAPTURE FAILED');
+        ui.setAudioStatus('SYSTEM CAPTURE CANCELLED');
+        ui.showNotification('SYSTEM CAPTURE FAILED');
     }
 }
 
@@ -452,14 +452,14 @@ async function loadAudioTrack() {
             const audioEngine = new AudioEngine();
             await audioEngine.loadFile(file);
             render.setAudioEngine(audioEngine);
-            setAudioStatus('TRACK: ' + file.name, 'on');
+            ui.setAudioStatus('TRACK: ' + file.name, 'on');
             document.getElementById('playback-row')?.classList.add('visible');
             render.updatePlaybackUI();
-            showNotification('AUDIO TRACK LOADED');
+            ui.showNotification('AUDIO TRACK LOADED');
         } catch (err) {
             render.setAudioEngine(null);
-            setAudioStatus('TRACK ERROR');
-            showNotification('AUDIO LOAD FAILED');
+            ui.setAudioStatus('TRACK ERROR');
+            ui.showNotification('AUDIO LOAD FAILED');
         }
     };
     input.click();
@@ -469,9 +469,9 @@ function stopAudio() {
     const eng = render.getAudioEngine();
     if (eng) eng.stop();
     render.setAudioEngine(null);
-    setAudioStatus('OFF');
+    ui.setAudioStatus('OFF');
     document.getElementById('playback-row')?.classList.remove('visible');
-    showNotification('AUDIO DISABLED');
+    ui.showNotification('AUDIO DISABLED');
 }
 
 function toggleGodMode() {
@@ -481,12 +481,12 @@ function toggleGodMode() {
         btn.textContent = S.godModeActive ? '🤖 GOD: ON' : '🤖 God Mode';
         btn.classList.toggle('active', S.godModeActive);
     }
-    showNotification(S.godModeActive ? 'GOD MODE ENABLED' : 'GOD MODE DISABLED');
+    ui.showNotification(S.godModeActive ? 'GOD MODE ENABLED' : 'GOD MODE DISABLED');
 }
 
 function togglePhotoMode() {
     if (!S.photoMode && !photoSource) {
-        showNotification('PHOTO MODE: UPLOAD AN IMAGE FIRST');
+        ui.showNotification('PHOTO MODE: UPLOAD AN IMAGE FIRST');
         return;
     }
     S.photoMode = !S.photoMode;
@@ -505,59 +505,7 @@ function togglePhotoMode() {
     regenerateOffsets(S.particleCount);
     S.colorsDirty = true;
     render.updateParticles();
-    showNotification(S.photoMode ? 'PHOTO MODE ENABLED' : 'PHOTO MODE OFF');
-}
-
-function setAudioStatus(text, cls) {
-    const el = document.getElementById('audio-status');
-    if (!el) return;
-    el.textContent = text;
-    el.className = 'audio-status' + (cls ? ' ' + cls : '');
-}
-
-// ============================================
-// UI HELPERS
-// ============================================
-function updateHudFormName() {
-    const select = document.getElementById('shape-select');
-    const name = document.getElementById('form-name');
-    if (select && name) {
-        const opt = select.options[select.selectedIndex];
-        name.textContent = opt ? opt.text : S.currentShape;
-    }
-}
-
-function updateUIFromState() {
-    document.getElementById('particle-count-slider').value = S.particleCount;
-    document.getElementById('particle-count-value').textContent = (S.particleCount / 1000).toFixed(0) + 'K';
-    document.getElementById('particle-count').textContent = S.particleCount.toLocaleString();
-    document.getElementById('particle-size').value = S.particleSize;
-    document.getElementById('particle-size-value').textContent = S.particleSize.toFixed(1);
-    document.getElementById('sim-speed').value = S.simSpeed;
-    document.getElementById('sim-speed-value').textContent = S.simSpeed.toFixed(2);
-    document.getElementById('shape-select').value = S.currentShape;
-    document.getElementById('form-scale').value = S.formScale;
-    document.getElementById('form-scale-value').textContent = S.formScale.toFixed(0);
-    document.getElementById('form-rotation').value = S.formRotationSpeed;
-    document.getElementById('form-rotation-value').textContent = S.formRotationSpeed.toFixed(2);
-    document.getElementById('form-chaos').value = S.formChaos;
-    document.getElementById('form-chaos-value').textContent = S.formChaos;
-    document.getElementById('color-mode').value = S.colorMode;
-    document.getElementById('hue-offset').value = S.hueOffset;
-    document.getElementById('hue-offset-value').textContent = S.hueOffset + '°';
-    document.getElementById('anim-select').value = S.colorAnimation;
-    document.getElementById('bloom-toggle').checked = S.bloomEnabled;
-    document.getElementById('bloom-intensity').value = S.bloomIntensity;
-    document.getElementById('bloom-intensity-value').textContent = S.bloomIntensity.toFixed(1);
-    document.getElementById('trail-toggle').checked = S.trailEnabled;
-    document.getElementById('rotate-speed').value = S.rotateSpeed;
-    document.getElementById('rotate-speed-value').textContent = S.rotateSpeed.toFixed(1);
-    document.getElementById('auto-rotate').checked = S.autoRotate;
-    document.getElementById('twinkle-toggle').checked = S.twinkleEnabled;
-    document.getElementById('starfield-toggle').checked = S.starfieldEnabled;
-    document.getElementById('aberration-toggle').checked = S.aberrationEnabled;
-    document.getElementById('pointerfx-toggle').checked = S.pointerFxEnabled;
-    updateHudFormName();
+    ui.showNotification(S.photoMode ? 'PHOTO MODE ENABLED' : 'PHOTO MODE OFF');
 }
 
 // ============================================
@@ -590,7 +538,7 @@ function applyConfig(cfg) {
     if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
 
     render.applyConfigRender(countChanged);
-    updateUIFromState();
+    ui.updateUIFromState();
 }
 
 // ============================================
@@ -610,21 +558,21 @@ function savePreset(slot = 1, btn = null) {
             btn.style.background = '';
         }, 1000);
     }
-    showNotification(`PRESET ${slot} SAVED`);
+    ui.showNotification(`PRESET ${slot} SAVED`);
 }
 
 function loadPreset(slot = 1) {
     const saved = localStorage.getItem('ether-preset-' + slot);
     if (!saved) {
-        showNotification(`NO PRESET IN SLOT ${slot}`);
+        ui.showNotification(`NO PRESET IN SLOT ${slot}`);
         return;
     }
     try {
         const preset = JSON.parse(saved);
         applyConfig(preset);
-        showNotification(`PRESET ${slot} LOADED`);
+        ui.showNotification(`PRESET ${slot} LOADED`);
     } catch (e) {
-        showNotification('PRESET CORRUPTED');
+        ui.showNotification('PRESET CORRUPTED');
     }
 }
 
@@ -632,9 +580,9 @@ function publishPreset() {
     const b64 = btoa(encodeURIComponent(JSON.stringify(collectConfig())));
     const url = location.origin + location.pathname + '#preset=' + b64;
     navigator.clipboard.writeText(url).then(() => {
-        showNotification('SHARE LINK COPIED!');
+        ui.showNotification('SHARE LINK COPIED!');
     }).catch(() => {
-        showNotification('COPY FAILED — URL: ' + url);
+        ui.showNotification('COPY FAILED — URL: ' + url);
     });
 }
 
@@ -645,7 +593,7 @@ function loadCloudShape() {
         render.morphToShape(cfg.shape, 1.2);
     }
     applyConfig(cfg);
-    showNotification('CLOUD SHAPE: ' + cfg.shape.toUpperCase());
+    ui.showNotification('CLOUD SHAPE: ' + cfg.shape.toUpperCase());
 }
 
 // ============================================
@@ -663,13 +611,13 @@ function randomize() {
     S.colorAnimation = ['static', 'scroll', 'wave', 'pulse'][Math.floor(Math.random() * 4)];
     S.colorsDirty = true;
     render.updateParticles();
-    updateUIFromState();
-    showNotification('RANDOMIZED');
+    ui.updateUIFromState();
+    ui.showNotification('RANDOMIZED');
 }
 
 function reset() {
     applyConfig(DEFAULT_CONFIG);
-    showNotification('RESET TO DEFAULTS');
+    ui.showNotification('RESET TO DEFAULTS');
 }
 
 // ============================================
@@ -687,7 +635,7 @@ function exportCode(type) {
     const ext = type === 'react' ? 'jsx' : type === 'vanilla' ? 'html' : 'js';
     const name = type === 'vanilla' ? 'ether-resonance.html' : 'ether-resonance-' + type + '.' + ext;
     downloadBlob(new Blob([code], { type: 'text/plain;charset=utf-8' }), name);
-    showNotification('EXPORTED: ' + name);
+    ui.showNotification('EXPORTED: ' + name);
 }
 
 function copyCode() {
@@ -698,13 +646,13 @@ function copyCode() {
         config: collectConfig()
     });
     navigator.clipboard.writeText(code).then(() => {
-        showNotification('CODE COPIED!');
+        ui.showNotification('CODE COPIED!');
         const btn = document.getElementById('btn-copy');
         const original = btn.textContent;
         btn.textContent = '✅ Copied!';
         setTimeout(() => { btn.textContent = original; }, 2000);
     }).catch(err => {
-        showNotification('COPY FAILED');
+        ui.showNotification('COPY FAILED');
     });
 }
 
@@ -717,7 +665,7 @@ function exportPly() {
     const count = S.particleCount;
     const pos = render.currentPositions(count);
     downloadBlob(new Blob([buildPlyText(pos, count)], { type: 'text/plain' }), 'ether-resonance.ply');
-    showNotification('PLY EXPORTED (' + count + ' VERTICES)');
+    ui.showNotification('PLY EXPORTED (' + count + ' VERTICES)');
 }
 
 function exportObj() {
@@ -726,7 +674,7 @@ function exportObj() {
     const count = S.particleCount;
     const pos = render.currentPositions(count);
     downloadBlob(new Blob([buildObjText(pos, count)], { type: 'text/plain' }), 'ether-resonance.obj');
-    showNotification('OBJ EXPORTED (' + count + ' VERTICES)');
+    ui.showNotification('OBJ EXPORTED (' + count + ' VERTICES)');
 }
 
 function exportGlb() {
@@ -735,7 +683,7 @@ function exportGlb() {
     const count = S.particleCount;
     const pos = render.currentPositions(count);
     downloadBlob(new Blob([buildGlbBuffer(pos, count)], { type: 'model/gltf-binary' }), 'ether-resonance.glb');
-    showNotification('GLB EXPORTED (' + count + ' VERTICES)');
+    ui.showNotification('GLB EXPORTED (' + count + ' VERTICES)');
 }
 
 // ============================================
@@ -743,7 +691,7 @@ function exportGlb() {
 // ============================================
 function uploadFile(type) {
     if (type === 'video') {
-        showNotification('VIDEO UPLOAD: USE AUDIO TRACK INSTEAD');
+        ui.showNotification('VIDEO UPLOAD: USE AUDIO TRACK INSTEAD');
         return;
     }
     const accept = type === '3d' ? '.obj,.glb,.gltf,.ply' : type === 'audio' ? 'audio/*' : 'image/*';
@@ -799,14 +747,14 @@ async function handleUpload(type, file) {
             const audioEngine = new AudioEngine();
             await audioEngine.loadFile(file);
             render.setAudioEngine(audioEngine);
-            setAudioStatus('TRACK: ' + file.name, 'on');
+            ui.setAudioStatus('TRACK: ' + file.name, 'on');
             document.getElementById('playback-row')?.classList.add('visible');
             render.updatePlaybackUI();
-            showNotification('AUDIO TRACK LOADED');
+            ui.showNotification('AUDIO TRACK LOADED');
         } catch (err) {
             render.setAudioEngine(null);
-            setAudioStatus('TRACK ERROR');
-            showNotification('AUDIO LOAD FAILED');
+            ui.setAudioStatus('TRACK ERROR');
+            ui.showNotification('AUDIO LOAD FAILED');
         }
         return;
     }
@@ -832,74 +780,15 @@ async function handleUpload(type, file) {
             regenerateOffsets(S.particleCount);
             S.colorsDirty = true;
             render.updateParticles();
-            showNotification('IMAGE APPLIED: ' + file.name);
+            ui.showNotification('IMAGE APPLIED: ' + file.name);
         } catch (err) {
-            showNotification('IMAGE LOAD FAILED');
+            ui.showNotification('IMAGE LOAD FAILED');
         }
     } else if (type === '3d') {
         render.loadModelOffsetSource(file,
-            () => showNotification('MODEL APPLIED: ' + file.name),
-            message => showNotification(message));
+            () => ui.showNotification('MODEL APPLIED: ' + file.name),
+            message => ui.showNotification(message));
     }
-}
-
-// ============================================
-// UI FUNCTIONS
-// ============================================
-function toggleHUD() {
-    document.getElementById('hud').classList.toggle('hidden');
-}
-
-function toggleControls() {
-    document.getElementById('controls').classList.toggle('hidden');
-}
-
-function initializeNeuralLink() {
-    const calibScreen = document.getElementById('calibration');
-    const linkStatus = document.getElementById('link-status');
-    const calibStatus = document.getElementById('calibration-status');
-
-    calibScreen.classList.add('active');
-    let progress = 0;
-    const interval = setInterval(() => {
-        progress += 10;
-        if (progress >= 100) {
-            clearInterval(interval);
-            calibScreen.classList.remove('active');
-            linkStatus.textContent = 'ONLINE';
-            linkStatus.style.color = '#0f8';
-            calibStatus.style.display = 'block';
-            showNotification('NEURAL LINK CALIBRATED!');
-        }
-    }, 300);
-}
-
-function toggleLiveUpdate() {
-    S.liveUpdateEnabled = !S.liveUpdateEnabled;
-    const btn = document.getElementById('btn-live-update');
-    if (btn) {
-        btn.textContent = S.liveUpdateEnabled ? '⚡ LIVE: ON' : '⚡ LIVE UPDATE';
-        btn.style.background = S.liveUpdateEnabled ? 'rgba(0, 255, 100, 0.3)' : '';
-    }
-    showNotification(S.liveUpdateEnabled ? 'LIVE UPDATE ENABLED' : 'LIVE UPDATE DISABLED');
-}
-
-function togglePlayPause() {
-    S.isPaused = !S.isPaused;
-    const btn = document.getElementById('btn-play-pause');
-    if (btn) btn.textContent = S.isPaused ? '▶️ Play' : '⏸️ Pause';
-    showNotification(S.isPaused ? 'PAUSED' : 'RESUMED');
-}
-
-function copyPrompt() {
-    const prompt = 'Ether Resonance: ' + S.currentShape + ', ' + S.particleCount + ' particles, ' + S.colorMode + ' mode, animation ' + S.colorAnimation;
-    navigator.clipboard.writeText(prompt).then(() => {
-        showNotification('PROMPT COPIED!');
-    });
-}
-
-function toggleGuide() {
-    document.getElementById('guide').classList.toggle('hidden');
 }
 
 // ============================================
@@ -910,40 +799,7 @@ function setForm(shape) {
         render.morphToShape(shape, 1.0);
     }
     document.getElementById('shape-select').value = shape;
-    updateHudFormName();
-}
-
-// ============================================
-// DRAWING PAD
-// ============================================
-function toggleDrawingPad() {
-    const pad = document.getElementById('drawing-pad');
-    const toggle = document.getElementById('drawing-pad-toggle');
-    pad.classList.toggle('hidden');
-    const drawingPad = render.getDrawingPad();
-    if (pad.classList.contains('hidden')) {
-        drawingPad.setEnabled(false);
-        toggle.textContent = '🎨';
-        toggle.title = 'Show Drawing Pad';
-    } else {
-        drawingPad.setEnabled(true);
-        toggle.textContent = '✖️';
-        toggle.title = 'Hide Drawing Pad';
-    }
-}
-
-function selectTool(tool) {
-    const drawingPad = render.getDrawingPad();
-    drawingPad.setTool(tool);
-    const penBtn = document.getElementById('btn-pen');
-    const eraserBtn = document.getElementById('btn-eraser');
-    if (tool === 'eraser') {
-        penBtn.classList.remove('active');
-        eraserBtn.classList.add('active');
-    } else {
-        eraserBtn.classList.remove('active');
-        penBtn.classList.add('active');
-    }
+    ui.updateHudFormName();
 }
 
 // ============================================
@@ -953,26 +809,13 @@ function setAspectRatio(ratio) {
     if (ratio === 'custom') {
         S.activeAspect = null;
         render.applyAspect();
-        showNotification('FULL WINDOW');
+        ui.showNotification('FULL WINDOW');
         return;
     }
     const [w, h] = ratio.split(':').map(Number);
     S.activeAspect = w / h;
     render.applyAspect();
-    showNotification(`ASPECT RATIO: ${ratio}`);
-}
-
-// ============================================
-// NOTIFICATIONS
-// ============================================
-function showNotification(message) {
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    setTimeout(() => {
-        notification.remove();
-    }, 2200);
+    ui.showNotification(`ASPECT RATIO: ${ratio}`);
 }
 
 // ============================================
@@ -995,42 +838,21 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => render.setLoopRunning(false));
 
 // ============================================
-// LOADING HELPER
-// ============================================
-function updateLoading(percent, status) {
-    const bar = document.getElementById('load-progress');
-    const text = document.getElementById('load-status');
-    if (bar) bar.style.width = percent + '%';
-    if (text) text.textContent = status;
-}
-
-// ============================================
 // GLOBAL EXPORTS (inline onclick handlers)
 // ============================================
 window.savePreset = savePreset;
 window.loadPreset = loadPreset;
 window.randomize = randomize;
 window.reset = reset;
-window.toggleFullscreen = toggleFullscreen;
-window.toggleHUD = toggleHUD;
-window.toggleControls = toggleControls;
-window.togglePlayPause = togglePlayPause;
-window.toggleDrawingPad = toggleDrawingPad;
+window.toggleFullscreen = ui.toggleFullscreen;
+window.toggleHUD = ui.toggleHUD;
+window.toggleControls = ui.toggleControls;
+window.togglePlayPause = ui.togglePlayPause;
+window.toggleDrawingPad = ui.toggleDrawingPad;
 window.togglePhotoMode = togglePhotoMode;
-window.showNotification = showNotification;
+window.showNotification = ui.showNotification;
 window.exportCode = exportCode;
 window.uploadFile = uploadFile;
-
-// ============================================
-// FULLSCREEN
-// ============================================
-function toggleFullscreen() {
-    if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => showNotification('FULLSCREEN DENIED'));
-    } else {
-        document.exitFullscreen();
-    }
-}
 
 // ============================================
 // START

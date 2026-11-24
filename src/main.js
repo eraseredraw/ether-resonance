@@ -32,6 +32,14 @@ import {
     downloadBlob, buildPlyText, buildObjText, buildGlbBuffer,
     generateExportCode, exportImage, exportVideo
 } from './exporters.js';
+import {
+    S,
+    MAX_PARTICLES,
+    DEFAULT_CONFIG,
+    CLOUD_SHAPES,
+    easeInOutCubic,
+    collectConfig
+} from './state.js';
 
 window.THREE = THREE;
 
@@ -41,52 +49,10 @@ window.THREE = THREE;
 let scene, camera, renderer, controls;
 let particleSystem, geometry, material;
 let composer, bloomPass;
-let isInitialized = false;
-let isPaused = false;
-let liveUpdateEnabled = false;
-
-const MAX_PARTICLES = 100000;
-
-// Mobile particle budget. A mid-range phone GPU with UnrealBloom chokes on
-// 40K sprites; the old fixed default made the first load on a phone look
-// broken rather than heavy. Coarse pointer + small screen is a cheap proxy
-// for "handset"; a desktop with a touch monitor keeps the full count. The
-// slider still lets anyone go back up to MAX_PARTICLES by hand.
-function defaultParticleBudget() {
-    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-    const small = Math.min(screen.width || 9999, screen.height || 9999) < 820;
-    return coarse && small ? 15000 : 40000;
-}
-
-let particleCount = defaultParticleBudget();
 let positions, colors;
 
 // Particle field state
-let time = 0;
-let simSpeed = 0.5;
 let lastFrameTime = performance.now();
-
-let currentShape = 'sphere';
-let formScale = 150;
-let formRotationSpeed = 0.3;
-let formChaos = 0;
-
-let colorMode = 'ice';
-let hueOffset = 0;
-const colorSaturation = 0.8;
-let colorAnimation = 'static';
-
-let bloomEnabled = true;
-let bloomIntensity = 3.5;
-let trailEnabled = false;
-let particleSize = 0.75;
-let twinkleEnabled = true;
-
-let autoRotate = true;
-let rotateSpeed = 0.5;
-
-let targetZoomDistance = 412;
-let activeAspect = null;
 
 // FPS
 let frameCount = 0;
@@ -96,21 +62,12 @@ let lastQualityAdjustTime = 0;
 
 // Audio
 let audioEngine = null;
-let audioIntensity = 1.0;
-let godModeActive = false;
-let lastGodDecision = 0;
-let lastGodColorSwitch = 0;
 
 // Morph state
-let isMorphing = false;
-let morphProgress = 0;
-let morphDuration = 1.0;
 let morphStart = null;
 let morphTarget = null;
-let morphTargetShape = null;
 
 // Color recompute flag (colors only change on user input)
-let colorsDirty = true;
 
 // Drawing pad
 let drawingPad = null;
@@ -118,35 +75,25 @@ let drawingPad = null;
 // Scene extras
 let starfield = null;
 let rgbShiftPass = null;
-let starfieldEnabled = true;
-let aberrationEnabled = false;
-let pointerMagnet = false;
-let pointerFxEnabled = false;
 
 // Camera preset target (smooth glide)
 let camTarget = null;
 
 // Pointer interaction
-let pointerActive = false;
 const pointerWorld = new THREE.Vector3(0, 0, 0);
 const pointerRaycaster = new THREE.Raycaster();
 const pointerPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
-// ============================================
-// CACHED MATH CONSTANTS (Zero GC)
-// ============================================
-const PI2 = Math.PI * 2;
-const SQRT_PI = Math.sqrt(Math.PI);
 
 const boundSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 650);
 
 // Sync state into modules (audio modulation lives there too)
 function syncShapeState() {
-    setShapeState({ currentShape, formScale, formRotationSpeed, formChaos });
+    setShapeState({ currentShape: S.currentShape, formScale: S.formScale, formRotationSpeed: S.formRotationSpeed, formChaos: S.formChaos });
 }
 
 function syncColorState() {
-    setColorState({ colorMode, hueOffset, colorSaturation, colorAnimation });
+    setColorState({ colorMode: S.colorMode, hueOffset: S.hueOffset, colorSaturation: S.colorSaturation, colorAnimation: S.colorAnimation });
 }
 
 // ============================================
@@ -171,8 +118,8 @@ function init() {
     try {
         // Respect OS "reduce motion" — no auto-orbit, no twinkle
         if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            autoRotate = false;
-            twinkleEnabled = false;
+            S.autoRotate = false;
+            S.twinkleEnabled = false;
         }
 
         updateLoading(10, 'Creating scene...');
@@ -205,8 +152,8 @@ function init() {
         controls.enableZoom = false;
         controls.enablePan = false;
         controls.enableRotate = true;
-        controls.autoRotate = autoRotate;
-        controls.autoRotateSpeed = rotateSpeed;
+        controls.autoRotate = S.autoRotate;
+        controls.autoRotateSpeed = S.rotateSpeed;
         controls.minDistance = 10;
         controls.maxDistance = 2000;
         controls.touches = {
@@ -227,7 +174,7 @@ function init() {
         setupEventListeners();
         setupDragAndDrop();
 
-        targetZoomDistance = camera.position.length();
+        S.targetZoomDistance = camera.position.length();
         updateHudFormName();
 
         // Restore preset from URL hash (#preset=...)
@@ -252,12 +199,12 @@ function init() {
         // markup ships value="40000" and would otherwise lie on phones.
         const pcSlider = document.getElementById('particle-count-slider');
         if (pcSlider) {
-            pcSlider.value = String(particleCount);
+            pcSlider.value = String(S.particleCount);
             const lbl = document.getElementById('particle-count-value');
-            if (lbl) lbl.textContent = (particleCount / 1000) + 'K';
+            if (lbl) lbl.textContent = (S.particleCount / 1000) + 'K';
         }
 
-        isInitialized = true;
+        S.isInitialized = true;
         setLoopRunning(true);
     } catch (error) {
         console.error('❌ Initialization error:', error);
@@ -283,9 +230,9 @@ function rebuildParticles() {
     geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    geometry.setDrawRange(0, particleCount);
+    geometry.setDrawRange(0, S.particleCount);
 
-    material = createParticleMaterial({ size: particleSize });
+    material = createParticleMaterial({ size: S.particleSize });
     updateParticleMaterial(material, { pixelRatio: renderer ? renderer.getPixelRatio() : 1 });
 
     particleSystem = new THREE.Points(geometry, material);
@@ -293,82 +240,78 @@ function rebuildParticles() {
 
     syncShapeState();
     syncColorState();
-    regenerateOffsets(particleCount);
-    writePositionsToArray(positions, particleCount, time);
-    writeColorsToArray(colors, particleCount, time);
+    regenerateOffsets(S.particleCount);
+    writePositionsToArray(positions, S.particleCount, S.time);
+    writeColorsToArray(colors, S.particleCount, S.time);
     geometry.attributes.position.needsUpdate = true;
     geometry.attributes.color.needsUpdate = true;
-    boundSphere.radius = formScale * 4 + 50;
+    boundSphere.radius = S.formScale * 4 + 50;
     geometry.boundingSphere = boundSphere;
-    colorsDirty = false;
-    isMorphing = false;
+    S.colorsDirty = false;
+    S.isMorphing = false;
 }
 
 function updateParticles() {
-    if (!isInitialized || !geometry || !geometry.attributes || !geometry.attributes.position) return;
-    if (particleCount <= 0 || particleCount > MAX_PARTICLES) return;
+    if (!S.isInitialized || !geometry || !geometry.attributes || !geometry.attributes.position) return;
+    if (S.particleCount <= 0 || S.particleCount > MAX_PARTICLES) return;
 
     const posAttr = geometry.attributes.position;
     const colAttr = geometry.attributes.color;
 
     syncShapeState();
-    setColorTime(time);
-    writePositionsToArray(posAttr.array, particleCount, time);
+    setColorTime(S.time);
+    writePositionsToArray(posAttr.array, S.particleCount, S.time);
     posAttr.needsUpdate = true;
 
-    if (colorsDirty) {
-        writeColorsToArray(colAttr.array, particleCount, time);
+    if (S.colorsDirty) {
+        writeColorsToArray(colAttr.array, S.particleCount, S.time);
         colAttr.needsUpdate = true;
-        colorsDirty = false;
+        S.colorsDirty = false;
     }
 
-    geometry.setDrawRange(0, particleCount);
+    geometry.setDrawRange(0, S.particleCount);
 
     // Fixed bounding sphere (radius covers shape + offsets + chaos worst case)
-    boundSphere.radius = formScale * 4 + 50;
+    boundSphere.radius = S.formScale * 4 + 50;
     geometry.boundingSphere = boundSphere;
 }
 
 // ============================================
 // MORPHING
 // ============================================
-function easeInOutCubic(p) {
-    return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
-}
-
 function morphToShape(targetShape, duration = 1.0) {
     if (!geometry || !geometry.attributes.position) return;
-    if (targetShape === currentShape) {
-        isMorphing = false;
+    if (targetShape === S.currentShape) {
+        S.isMorphing = false;
         morphStart = null;
         morphTarget = null;
         updateParticles();
         return;
     }
     const posArr = geometry.attributes.position.array;
-    morphStart = new Float32Array(posArr.subarray(0, particleCount * 3));
-    morphTarget = new Float32Array(particleCount * 3);
-    morphTargetShape = targetShape;
-    morphDuration = duration;
-    morphProgress = 0;
-    isMorphing = true;
+    morphStart = new Float32Array(posArr.subarray(0, S.particleCount * 3));
+    morphTarget = new Float32Array(S.particleCount * 3);
+    S.morphTargetShape = targetShape;
+    S.morphDuration = duration;
+    S.morphProgress = 0;
+    S.isMorphing = true;
 }
 
 function advanceMorph(dt) {
     const posArr = geometry.attributes.position.array;
 
-    // Live target: recompute with current time so there is no jump on completion
+    // Live target: recompute with current S.time so there is no jump on completion
     syncShapeState();
-    writePositionsToArray(morphTarget, particleCount, time);
+    writePositionsToArray(morphTarget, S.particleCount, S.time);
 
-    morphProgress = Math.min(morphProgress + dt / morphDuration, 1);
-    const eased = easeInOutCubic(morphProgress);
+    S.morphProgress = Math.min(S.morphProgress + dt / S.morphDuration, 1);
+    const eased = easeInOutCubic(S.morphProgress);
 
     // Chaotic reassembly: particles scatter with per-particle hash jitter
     // that shrinks to zero as the morph lands on the target shape.
-    const jitter = formScale * 1.1 * Math.pow(1 - eased, 1.5);
+    const jitter = S.formScale * 1.1 * Math.pow(1 - eased, 1.5);
 
-    for (let i = 0; i < particleCount; i++) {
+    for (let i = 0; i < S.particleCount; i++) {
         const o = i * 3;
         const hx = Math.sin(i * 12.9898) * 43758.5453 % 1 - 0.5;
         const hy = Math.sin(i * 78.233 + 1) * 43758.5453 % 1 - 0.5;
@@ -379,16 +322,16 @@ function advanceMorph(dt) {
     }
     geometry.attributes.position.needsUpdate = true;
 
-    if (colorsDirty) {
-        setColorTime(time);
-        writeColorsToArray(geometry.attributes.color.array, particleCount, time);
+    if (S.colorsDirty) {
+        setColorTime(S.time);
+        writeColorsToArray(geometry.attributes.color.array, S.particleCount, S.time);
         geometry.attributes.color.needsUpdate = true;
-        colorsDirty = false;
+        S.colorsDirty = false;
     }
 
-    if (morphProgress >= 1) {
-        currentShape = morphTargetShape;
-        isMorphing = false;
+    if (S.morphProgress >= 1) {
+        S.currentShape = S.morphTargetShape;
+        S.isMorphing = false;
         morphStart = null;
         morphTarget = null;
     }
@@ -399,16 +342,16 @@ function advanceMorph(dt) {
 // ============================================
 function createStarfieldInScene() {
     starfield = createStarfield(1200, 1500);
-    starfield.visible = starfieldEnabled;
+    starfield.visible = S.starfieldEnabled;
     scene.add(starfield);
 }
 
 function setSceneToggle(name, enabled) {
     if (name === 'starfield') {
-        starfieldEnabled = enabled;
+        S.starfieldEnabled = enabled;
         if (starfield) starfield.visible = enabled;
     } else if (name === 'aberration') {
-        aberrationEnabled = enabled;
+        S.aberrationEnabled = enabled;
         if (rgbShiftPass) rgbShiftPass.enabled = enabled;
     }
 }
@@ -424,9 +367,9 @@ function setCameraPreset(preset) {
     else if (preset === 'top') target = new THREE.Vector3(0, 480, 1);
     else if (preset === 'orbit') target = new THREE.Vector3(0, 100, 400);
     camTarget = target;
-    targetZoomDistance = target.length();
+    S.targetZoomDistance = target.length();
     if (preset !== 'orbit' && controls) controls.autoRotate = false;
-    else if (preset === 'orbit' && controls) controls.autoRotate = autoRotate;
+    else if (preset === 'orbit' && controls) controls.autoRotate = S.autoRotate;
     showNotification('CAMERA: ' + preset.toUpperCase());
 }
 
@@ -445,31 +388,31 @@ function setupPostProcessing() {
 
     bloomPass = new UnrealBloomPass(
         bloomResolution,
-        bloomIntensity,
+        S.bloomIntensity,
         0.4,
         0.85
     );
     composer.addPass(bloomPass);
 
     rgbShiftPass = createRGBShiftPass(0.0025);
-    rgbShiftPass.enabled = aberrationEnabled;
+    rgbShiftPass.enabled = S.aberrationEnabled;
     composer.addPass(rgbShiftPass);
 
     window.adjustBloomQuality = function (fps) {
         if (fps < 30) {
-            bloomPass.strength = Math.max(0.5, bloomIntensity * 0.5);
+            bloomPass.strength = Math.max(0.5, S.bloomIntensity * 0.5);
             bloomPass.resolution.set(
                 Math.floor(window.innerWidth / 4),
                 Math.floor(window.innerHeight / 4)
             );
         } else if (fps < 55) {
-            bloomPass.strength = bloomIntensity;
+            bloomPass.strength = S.bloomIntensity;
             bloomPass.resolution.set(
                 Math.floor(window.innerWidth / 2),
                 Math.floor(window.innerHeight / 2)
             );
         } else {
-            bloomPass.strength = bloomIntensity;
+            bloomPass.strength = S.bloomIntensity;
             bloomPass.resolution.set(
                 Math.floor(window.innerWidth),
                 Math.floor(window.innerHeight)
@@ -491,39 +434,39 @@ function setupEventListeners() {
     const slider = document.getElementById('particle-count-slider');
     slider.addEventListener('input', e => {
         const newCount = parseInt(e.target.value);
-        if (newCount !== particleCount) {
-            particleCount = newCount;
+        if (newCount !== S.particleCount) {
+            S.particleCount = newCount;
             rebuildParticles();
         }
         document.getElementById('particle-count-value').textContent =
-            (particleCount / 1000).toFixed(0) + 'K';
-        document.getElementById('particle-count').textContent = particleCount.toLocaleString();
+            (S.particleCount / 1000).toFixed(0) + 'K';
+        document.getElementById('particle-count').textContent = S.particleCount.toLocaleString();
     });
 
     document.getElementById('particle-size').addEventListener('input', e => {
-        particleSize = parseFloat(e.target.value);
-        updateParticleMaterial(material, { size: particleSize });
+        S.particleSize = parseFloat(e.target.value);
+        updateParticleMaterial(material, { size: S.particleSize });
         document.getElementById('particle-size-value').textContent = e.target.value;
     });
 
     document.getElementById('sim-speed').addEventListener('input', e => {
-        simSpeed = parseFloat(e.target.value);
+        S.simSpeed = parseFloat(e.target.value);
         document.getElementById('sim-speed-value').textContent = e.target.value;
     });
 
     document.getElementById('bloom-toggle').addEventListener('change', e => {
-        bloomEnabled = e.target.checked;
-        if (bloomPass) bloomPass.enabled = bloomEnabled;
+        S.bloomEnabled = e.target.checked;
+        if (bloomPass) bloomPass.enabled = S.bloomEnabled;
     });
 
     document.getElementById('bloom-intensity').addEventListener('input', e => {
-        bloomIntensity = parseFloat(e.target.value);
-        if (bloomPass) bloomPass.strength = bloomIntensity;
+        S.bloomIntensity = parseFloat(e.target.value);
+        if (bloomPass) bloomPass.strength = S.bloomIntensity;
         document.getElementById('bloom-intensity-value').textContent = e.target.value;
     });
 
     document.getElementById('trail-toggle').addEventListener('change', e => {
-        trailEnabled = e.target.checked;
+        S.trailEnabled = e.target.checked;
     });
 
     // --- Form ---
@@ -533,37 +476,37 @@ function setupEventListeners() {
     });
 
     document.getElementById('form-scale').addEventListener('input', e => {
-        formScale = parseInt(e.target.value);
+        S.formScale = parseInt(e.target.value);
         document.getElementById('form-scale-value').textContent = e.target.value;
     });
 
     document.getElementById('form-rotation').addEventListener('input', e => {
-        formRotationSpeed = parseFloat(e.target.value);
+        S.formRotationSpeed = parseFloat(e.target.value);
         document.getElementById('form-rotation-value').textContent = e.target.value;
     });
 
     document.getElementById('form-chaos').addEventListener('input', e => {
-        formChaos = parseInt(e.target.value);
+        S.formChaos = parseInt(e.target.value);
         document.getElementById('form-chaos-value').textContent = e.target.value;
     });
 
     // --- Color ---
     document.getElementById('color-mode').addEventListener('change', e => {
-        colorMode = e.target.value;
-        colorsDirty = true;
+        S.colorMode = e.target.value;
+        S.colorsDirty = true;
         updateParticles();
     });
 
     document.getElementById('hue-offset').addEventListener('input', e => {
-        hueOffset = parseInt(e.target.value);
+        S.hueOffset = parseInt(e.target.value);
         document.getElementById('hue-offset-value').textContent = e.target.value + '°';
-        colorsDirty = true;
+        S.colorsDirty = true;
         updateParticles();
     });
 
     document.getElementById('anim-select').addEventListener('change', e => {
-        colorAnimation = e.target.value;
-        colorsDirty = true;
+        S.colorAnimation = e.target.value;
+        S.colorsDirty = true;
         updateParticles();
     });
 
@@ -574,13 +517,13 @@ function setupEventListeners() {
     document.getElementById('btn-audio-stop')?.addEventListener('click', stopAudio);
 
     document.getElementById('audio-intensity')?.addEventListener('input', e => {
-        audioIntensity = parseFloat(e.target.value);
-        document.getElementById('audio-intensity-value').textContent = audioIntensity.toFixed(2);
+        S.audioIntensity = parseFloat(e.target.value);
+        document.getElementById('audio-intensity-value').textContent = S.audioIntensity.toFixed(2);
     });
 
     document.getElementById('twinkle-toggle')?.addEventListener('change', e => {
-        twinkleEnabled = e.target.checked;
-        updateParticleMaterial(material, { twinkle: twinkleEnabled });
+        S.twinkleEnabled = e.target.checked;
+        updateParticleMaterial(material, { twinkle: S.twinkleEnabled });
     });
 
     document.getElementById('btn-god-mode')?.addEventListener('click', toggleGodMode);
@@ -601,14 +544,14 @@ function setupEventListeners() {
 
     // --- Camera ---
     document.getElementById('rotate-speed').addEventListener('input', e => {
-        rotateSpeed = parseFloat(e.target.value);
+        S.rotateSpeed = parseFloat(e.target.value);
         document.getElementById('rotate-speed-value').textContent = e.target.value;
-        if (controls) controls.autoRotateSpeed = rotateSpeed;
+        if (controls) controls.autoRotateSpeed = S.rotateSpeed;
     });
 
     document.getElementById('auto-rotate').addEventListener('change', e => {
-        autoRotate = e.target.checked;
-        if (controls) controls.autoRotate = autoRotate;
+        S.autoRotate = e.target.checked;
+        if (controls) controls.autoRotate = S.autoRotate;
     });
 
     // --- Camera presets ---
@@ -622,31 +565,31 @@ function setupEventListeners() {
 
     // --- Pointer FX (magnet/repulse/wave), off by default ---
     document.getElementById('pointerfx-toggle')?.addEventListener('change', e => {
-        pointerFxEnabled = e.target.checked;
-        if (!pointerFxEnabled) setMouseState(-9999, -9999, 0);
+        S.pointerFxEnabled = e.target.checked;
+        if (!S.pointerFxEnabled) setMouseState(-9999, -9999, 0);
     });
 
     // --- Pointer magnet (attract vs repulse) ---
     document.getElementById('magnet-toggle')?.addEventListener('change', e => {
-        pointerMagnet = e.target.checked;
-        setMouseMode(pointerMagnet ? 'attract' : 'repulse');
+        S.pointerMagnet = e.target.checked;
+        setMouseMode(S.pointerMagnet ? 'attract' : 'repulse');
     });
 
     // --- Pointer interaction (repulse + click shockwave) ---
     renderer.domElement.addEventListener('pointermove', (e) => {
-        if (!pointerFxEnabled) return;
-        pointerActive = true;
+        if (!S.pointerFxEnabled) return;
+        S.pointerActive = true;
         updatePointerWorld(e);
         setMouseState(pointerWorld.x, pointerWorld.y, 26);
     });
     renderer.domElement.addEventListener('pointerleave', () => {
-        pointerActive = false;
-        if (pointerFxEnabled) setMouseState(-9999, -9999, 0);
+        S.pointerActive = false;
+        if (S.pointerFxEnabled) setMouseState(-9999, -9999, 0);
     });
     renderer.domElement.addEventListener('pointerdown', (e) => {
-        if (!pointerFxEnabled) return;
+        if (!S.pointerFxEnabled) return;
         updatePointerWorld(e);
-        triggerWave(pointerWorld.x, pointerWorld.y, time);
+        triggerWave(pointerWorld.x, pointerWorld.y, S.time);
     });
 
     // --- Export ---
@@ -704,9 +647,9 @@ function setupEventListeners() {
 
     // --- Drawing pad ---
     drawingPad = new DrawingPad(() => {
-        setOffsetSource(drawingPad.toOffsetSource(particleCount));
-        regenerateOffsets(particleCount);
-        colorsDirty = true;
+        setOffsetSource(drawingPad.toOffsetSource(S.particleCount));
+        regenerateOffsets(S.particleCount);
+        S.colorsDirty = true;
         updateParticles();
         showNotification('DRAWING APPLIED');
     });
@@ -753,7 +696,7 @@ function setupEventListeners() {
     renderer.domElement.addEventListener('wheel', (e) => {
         e.preventDefault();
         const factor = Math.exp(e.deltaY * 0.0008);
-        targetZoomDistance = Math.max(10, Math.min(targetZoomDistance * factor, 2000));
+        S.targetZoomDistance = Math.max(10, Math.min(S.targetZoomDistance * factor, 2000));
     }, { passive: false });
 
     // --- Pinch-to-zoom (mobile) ---
@@ -773,7 +716,7 @@ function setupEventListeners() {
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             const currentDistance = Math.sqrt(dx * dx + dy * dy);
             const zoomDelta = (initialPinchDistance - currentDistance) * 0.5;
-            targetZoomDistance = Math.max(10, Math.min(targetZoomDistance + zoomDelta, 2000));
+            S.targetZoomDistance = Math.max(10, Math.min(S.targetZoomDistance + zoomDelta, 2000));
         }
     }, { passive: false });
 
@@ -889,13 +832,13 @@ function updatePlaybackUI() {
 }
 
 function toggleGodMode() {
-    godModeActive = !godModeActive;
+    S.godModeActive = !S.godModeActive;
     const btn = document.getElementById('btn-god-mode');
     if (btn) {
-        btn.textContent = godModeActive ? '🤖 GOD: ON' : '🤖 God Mode';
-        btn.classList.toggle('active', godModeActive);
+        btn.textContent = S.godModeActive ? '🤖 GOD: ON' : '🤖 God Mode';
+        btn.classList.toggle('active', S.godModeActive);
     }
-    showNotification(godModeActive ? 'GOD MODE ENABLED' : 'GOD MODE DISABLED');
+    showNotification(S.godModeActive ? 'GOD MODE ENABLED' : 'GOD MODE DISABLED');
 }
 
 function setAudioStatus(text, cls) {
@@ -913,32 +856,32 @@ function godDirect() {
     // Intensity follows the track energy
     if (audioEngine) {
         const target = Math.max(0.5, Math.min(2, 0.7 + f.level * 1.4));
-        audioIntensity += (target - audioIntensity) * 0.02;
-        document.getElementById('audio-intensity').value = audioIntensity;
-        document.getElementById('audio-intensity-value').textContent = audioIntensity.toFixed(2);
+        S.audioIntensity += (target - S.audioIntensity) * 0.02;
+        document.getElementById('audio-intensity').value = S.audioIntensity;
+        document.getElementById('audio-intensity-value').textContent = S.audioIntensity.toFixed(2);
     }
 
     // Mood switches
-    if (now - lastGodDecision > 7000) {
-        lastGodDecision = now;
+    if (now - S.lastGodDecision > 7000) {
+        S.lastGodDecision = now;
         let mood;
         if (f.bass > 0.3) mood = 'vortex';
         else if (f.treble > 0.3) mood = 'helix';
         else if (f.level > 0.45) mood = 'torus';
         else mood = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-        if (mood !== currentShape && !isMorphing) {
+        if (mood !== S.currentShape && !S.isMorphing) {
             morphToShape(mood, 2.5);
             updateHudFormName();
         }
-        if (f.beat) formChaos = Math.floor(Math.random() * 30);
+        if (f.beat) S.formChaos = Math.floor(Math.random() * 30);
     }
 
     // Color mood shifts slower
-    if (now - lastGodColorSwitch > 14000) {
-        lastGodColorSwitch = now;
+    if (now - S.lastGodColorSwitch > 14000) {
+        S.lastGodColorSwitch = now;
         const modes = ['rainbow', 'plasma', 'ocean', 'fire', 'ice', 'neon', 'gold'];
-        colorMode = modes[Math.floor(Math.random() * modes.length)];
-        colorsDirty = true;
+        S.colorMode = modes[Math.floor(Math.random() * modes.length)];
+        S.colorsDirty = true;
     }
 }
 
@@ -948,18 +891,18 @@ function applyAudioFrame() {
     const f = audioEngine.update(dtLast);
     if (!f) return;
 
-    const k = audioIntensity;
+    const k = S.audioIntensity;
     // bass → scale swell, mid → rotation, treble → hue drift
     setFormScaleMod(1 + f.bass * k * 0.9);
     setFormRotationSpeedMod(1 + f.mid * k * 1.2);
     setHueOffsetMod(f.treble * k * 60);
 
     // beat → bloom flash
-    const target = bloomIntensity * (1 + (f.beat ? 0.7 : 0) + f.bass * k * 0.4);
+    const target = S.bloomIntensity * (1 + (f.beat ? 0.7 : 0) + f.bass * k * 0.4);
     if (bloomPass) {
         bloomPass.strength += (target - bloomPass.strength) * 0.2;
     }
-    updateParticleMaterial(material, { intensity: 0.85 + f.level * k * 0.6, time });
+    updateParticleMaterial(material, { intensity: 0.85 + f.level * k * 0.6, time: S.time });
 
     // HUD meter
     const meter = document.getElementById('audio-level');
@@ -990,7 +933,7 @@ function resetCamera() {
     if (!controls) return;
     controls.target.set(0, 0, 0);
     camera.position.set(0, 100, 400);
-    targetZoomDistance = camera.position.length();
+    S.targetZoomDistance = camera.position.length();
     camTarget = null;
     controls.update();
     showNotification('CAMERA RESET');
@@ -998,13 +941,13 @@ function resetCamera() {
 
 function setAspectRatio(ratio) {
     if (ratio === 'custom') {
-        activeAspect = null;
+        S.activeAspect = null;
         applyAspect();
         showNotification('FULL WINDOW');
         return;
     }
     const [w, h] = ratio.split(':').map(Number);
-    activeAspect = w / h;
+    S.activeAspect = w / h;
     applyAspect();
     showNotification(`ASPECT RATIO: ${ratio}`);
 }
@@ -1014,11 +957,11 @@ function applyAspect() {
     const ch = window.innerHeight;
     let w = cw;
     let h = ch;
-    if (activeAspect) {
-        if (cw / ch > activeAspect) {
-            w = Math.floor(ch * activeAspect);
+    if (S.activeAspect) {
+        if (cw / ch > S.activeAspect) {
+            w = Math.floor(ch * S.activeAspect);
         } else {
-            h = Math.floor(cw / activeAspect);
+            h = Math.floor(cw / S.activeAspect);
         }
     }
     if (!renderer) return;
@@ -1038,135 +981,89 @@ function updateHudFormName() {
     const name = document.getElementById('form-name');
     if (select && name) {
         const opt = select.options[select.selectedIndex];
-        name.textContent = opt ? opt.text : currentShape;
+        name.textContent = opt ? opt.text : S.currentShape;
     }
 }
 
 function updateUIFromState() {
-    document.getElementById('particle-count-slider').value = particleCount;
-    document.getElementById('particle-count-value').textContent = (particleCount / 1000).toFixed(0) + 'K';
-    document.getElementById('particle-count').textContent = particleCount.toLocaleString();
-    document.getElementById('particle-size').value = particleSize;
-    document.getElementById('particle-size-value').textContent = particleSize.toFixed(1);
-    document.getElementById('sim-speed').value = simSpeed;
-    document.getElementById('sim-speed-value').textContent = simSpeed.toFixed(2);
-    document.getElementById('shape-select').value = currentShape;
-    document.getElementById('form-scale').value = formScale;
-    document.getElementById('form-scale-value').textContent = formScale.toFixed(0);
-    document.getElementById('form-rotation').value = formRotationSpeed;
-    document.getElementById('form-rotation-value').textContent = formRotationSpeed.toFixed(2);
-    document.getElementById('form-chaos').value = formChaos;
-    document.getElementById('form-chaos-value').textContent = formChaos;
-    document.getElementById('color-mode').value = colorMode;
-    document.getElementById('hue-offset').value = hueOffset;
-    document.getElementById('hue-offset-value').textContent = hueOffset + '°';
-    document.getElementById('anim-select').value = colorAnimation;
-    document.getElementById('bloom-toggle').checked = bloomEnabled;
-    document.getElementById('bloom-intensity').value = bloomIntensity;
-    document.getElementById('bloom-intensity-value').textContent = bloomIntensity.toFixed(1);
-    document.getElementById('trail-toggle').checked = trailEnabled;
-    document.getElementById('rotate-speed').value = rotateSpeed;
-    document.getElementById('rotate-speed-value').textContent = rotateSpeed.toFixed(1);
-    document.getElementById('auto-rotate').checked = autoRotate;
-    document.getElementById('twinkle-toggle').checked = twinkleEnabled;
-    document.getElementById('starfield-toggle').checked = starfieldEnabled;
-    document.getElementById('aberration-toggle').checked = aberrationEnabled;
-    document.getElementById('pointerfx-toggle').checked = pointerFxEnabled;
+    document.getElementById('particle-count-slider').value = S.particleCount;
+    document.getElementById('particle-count-value').textContent = (S.particleCount / 1000).toFixed(0) + 'K';
+    document.getElementById('particle-count').textContent = S.particleCount.toLocaleString();
+    document.getElementById('particle-size').value = S.particleSize;
+    document.getElementById('particle-size-value').textContent = S.particleSize.toFixed(1);
+    document.getElementById('sim-speed').value = S.simSpeed;
+    document.getElementById('sim-speed-value').textContent = S.simSpeed.toFixed(2);
+    document.getElementById('shape-select').value = S.currentShape;
+    document.getElementById('form-scale').value = S.formScale;
+    document.getElementById('form-scale-value').textContent = S.formScale.toFixed(0);
+    document.getElementById('form-rotation').value = S.formRotationSpeed;
+    document.getElementById('form-rotation-value').textContent = S.formRotationSpeed.toFixed(2);
+    document.getElementById('form-chaos').value = S.formChaos;
+    document.getElementById('form-chaos-value').textContent = S.formChaos;
+    document.getElementById('color-mode').value = S.colorMode;
+    document.getElementById('hue-offset').value = S.hueOffset;
+    document.getElementById('hue-offset-value').textContent = S.hueOffset + '°';
+    document.getElementById('anim-select').value = S.colorAnimation;
+    document.getElementById('bloom-toggle').checked = S.bloomEnabled;
+    document.getElementById('bloom-intensity').value = S.bloomIntensity;
+    document.getElementById('bloom-intensity-value').textContent = S.bloomIntensity.toFixed(1);
+    document.getElementById('trail-toggle').checked = S.trailEnabled;
+    document.getElementById('rotate-speed').value = S.rotateSpeed;
+    document.getElementById('rotate-speed-value').textContent = S.rotateSpeed.toFixed(1);
+    document.getElementById('auto-rotate').checked = S.autoRotate;
+    document.getElementById('twinkle-toggle').checked = S.twinkleEnabled;
+    document.getElementById('starfield-toggle').checked = S.starfieldEnabled;
+    document.getElementById('aberration-toggle').checked = S.aberrationEnabled;
+    document.getElementById('pointerfx-toggle').checked = S.pointerFxEnabled;
     updateHudFormName();
 }
 
 // ============================================
 // CONFIG (presets, URL, cloud)
 // ============================================
-const DEFAULT_CONFIG = {
-    particleCount: 40000,
-    shape: 'sphere',
-    formScale: 150,
-    formRotationSpeed: 0.3,
-    formChaos: 0,
-    colorMode: 'ice',
-    hueOffset: 0,
-    colorAnimation: 'static',
-    bloomEnabled: true,
-    bloomIntensity: 3.5,
-    trailEnabled: false,
-    particleSize: 0.75,
-    simSpeed: 0.5,
-    autoRotate: true,
-    rotateSpeed: 0.5,
-    twinkleEnabled: true,
-    starfieldEnabled: true,
-    aberrationEnabled: false,
-    pointerFxEnabled: false
-};
-
-function collectConfig() {
-    return {
-        particleCount,
-        shape: currentShape,
-        formScale,
-        formRotationSpeed,
-        formChaos,
-        colorMode,
-        hueOffset,
-        colorAnimation,
-        bloomEnabled,
-        bloomIntensity,
-        trailEnabled,
-        particleSize,
-        simSpeed,
-        autoRotate,
-        rotateSpeed,
-        twinkleEnabled,
-        starfieldEnabled,
-        aberrationEnabled,
-        pointerFxEnabled
-    };
-}
-
 function applyConfig(cfg) {
     if (!cfg) return;
     let countChanged = false;
-    if (typeof cfg.particleCount === 'number' && cfg.particleCount !== particleCount) {
-        particleCount = Math.min(MAX_PARTICLES, Math.max(1000, cfg.particleCount));
+    if (typeof cfg.particleCount === 'number' && cfg.particleCount !== S.particleCount) {
+        S.particleCount = Math.min(MAX_PARTICLES, Math.max(1000, cfg.particleCount));
         countChanged = true;
     }
-    if (cfg.shape) currentShape = cfg.shape;
-    if (typeof cfg.formScale === 'number') formScale = cfg.formScale;
-    if (typeof cfg.formRotationSpeed === 'number') formRotationSpeed = cfg.formRotationSpeed;
-    if (typeof cfg.formChaos === 'number') formChaos = cfg.formChaos;
-    if (cfg.colorMode) colorMode = cfg.colorMode;
-    if (typeof cfg.hueOffset === 'number') hueOffset = cfg.hueOffset;
-    if (cfg.colorAnimation) colorAnimation = cfg.colorAnimation;
-    if (typeof cfg.bloomEnabled === 'boolean') bloomEnabled = cfg.bloomEnabled;
-    if (typeof cfg.bloomIntensity === 'number') bloomIntensity = cfg.bloomIntensity;
-    if (typeof cfg.trailEnabled === 'boolean') trailEnabled = cfg.trailEnabled;
-    if (typeof cfg.particleSize === 'number') particleSize = cfg.particleSize;
-    if (typeof cfg.simSpeed === 'number') simSpeed = cfg.simSpeed;
-    if (typeof cfg.autoRotate === 'boolean') autoRotate = cfg.autoRotate;
-    if (typeof cfg.rotateSpeed === 'number') rotateSpeed = cfg.rotateSpeed;
-    if (typeof cfg.twinkleEnabled === 'boolean') twinkleEnabled = cfg.twinkleEnabled;
-    if (typeof cfg.starfieldEnabled === 'boolean') starfieldEnabled = cfg.starfieldEnabled;
-    if (typeof cfg.aberrationEnabled === 'boolean') aberrationEnabled = cfg.aberrationEnabled;
-    if (typeof cfg.pointerFxEnabled === 'boolean') pointerFxEnabled = cfg.pointerFxEnabled;
+    if (cfg.shape) S.currentShape = cfg.shape;
+    if (typeof cfg.formScale === 'number') S.formScale = cfg.formScale;
+    if (typeof cfg.formRotationSpeed === 'number') S.formRotationSpeed = cfg.formRotationSpeed;
+    if (typeof cfg.formChaos === 'number') S.formChaos = cfg.formChaos;
+    if (cfg.colorMode) S.colorMode = cfg.colorMode;
+    if (typeof cfg.hueOffset === 'number') S.hueOffset = cfg.hueOffset;
+    if (cfg.colorAnimation) S.colorAnimation = cfg.colorAnimation;
+    if (typeof cfg.bloomEnabled === 'boolean') S.bloomEnabled = cfg.bloomEnabled;
+    if (typeof cfg.bloomIntensity === 'number') S.bloomIntensity = cfg.bloomIntensity;
+    if (typeof cfg.trailEnabled === 'boolean') S.trailEnabled = cfg.trailEnabled;
+    if (typeof cfg.particleSize === 'number') S.particleSize = cfg.particleSize;
+    if (typeof cfg.simSpeed === 'number') S.simSpeed = cfg.simSpeed;
+    if (typeof cfg.autoRotate === 'boolean') S.autoRotate = cfg.autoRotate;
+    if (typeof cfg.rotateSpeed === 'number') S.rotateSpeed = cfg.rotateSpeed;
+    if (typeof cfg.twinkleEnabled === 'boolean') S.twinkleEnabled = cfg.twinkleEnabled;
+    if (typeof cfg.starfieldEnabled === 'boolean') S.starfieldEnabled = cfg.starfieldEnabled;
+    if (typeof cfg.aberrationEnabled === 'boolean') S.aberrationEnabled = cfg.aberrationEnabled;
+    if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
 
-    updateParticleMaterial(material, { size: particleSize, twinkle: twinkleEnabled });
-    if (bloomPass) bloomPass.strength = bloomIntensity;
-    if (rgbShiftPass) rgbShiftPass.enabled = aberrationEnabled;
-    if (starfield) starfield.visible = starfieldEnabled;
-    if (!pointerFxEnabled) setMouseState(-9999, -9999, 0);
+    updateParticleMaterial(material, { size: S.particleSize, twinkle: S.twinkleEnabled });
+    if (bloomPass) bloomPass.strength = S.bloomIntensity;
+    if (rgbShiftPass) rgbShiftPass.enabled = S.aberrationEnabled;
+    if (starfield) starfield.visible = S.starfieldEnabled;
+    if (!S.pointerFxEnabled) setMouseState(-9999, -9999, 0);
     if (controls) {
-        controls.autoRotate = autoRotate;
-        controls.autoRotateSpeed = rotateSpeed;
+        controls.autoRotate = S.autoRotate;
+        controls.autoRotateSpeed = S.rotateSpeed;
     }
 
     if (countChanged) {
         rebuildParticles();
     } else {
-        isMorphing = false;
+        S.isMorphing = false;
         morphStart = null;
         morphTarget = null;
-        colorsDirty = true;
+        S.colorsDirty = true;
         updateParticles();
     }
     updateUIFromState();
@@ -1217,21 +1114,10 @@ function publishPreset() {
     });
 }
 
-const CLOUD_SHAPES = [
-    { shape: 'sphere', colorMode: 'neon', formScale: 170, simSpeed: 0.8, bloomIntensity: 2.5 },
-    { shape: 'vortex', colorMode: 'fire', formScale: 140, formRotationSpeed: 0.7, simSpeed: 0.9, bloomIntensity: 3 },
-    { shape: 'ribbon', colorMode: 'ocean', formScale: 180, formRotationSpeed: 0.5, simSpeed: 0.6 },
-    { shape: 'helix', colorMode: 'gold', formScale: 150, formRotationSpeed: 0.4, simSpeed: 0.7, hueOffset: 40 },
-    { shape: 'torus', colorMode: 'rainbow', formScale: 160, formRotationSpeed: 0.6, simSpeed: 0.8 },
-    { shape: 'plane', colorMode: 'plasma', formScale: 130, formChaos: 15, simSpeed: 0.9 },
-    { shape: 'spiral', colorMode: 'cyan', formScale: 165, formRotationSpeed: 0.55, simSpeed: 0.75 },
-    { shape: 'chaos', colorMode: 'white', formScale: 200, formChaos: 100, simSpeed: 0.5 }
-];
-
 function loadCloudShape() {
     const preset = CLOUD_SHAPES[Math.floor(Math.random() * CLOUD_SHAPES.length)];
     const cfg = Object.assign({}, collectConfig(), preset);
-    if (cfg.shape !== currentShape) {
+    if (cfg.shape !== S.currentShape) {
         morphToShape(cfg.shape, 1.2);
     }
     applyConfig(cfg);
@@ -1243,15 +1129,15 @@ function loadCloudShape() {
 // ============================================
 function randomize() {
     const newShape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
-    if (newShape !== currentShape) {
+    if (newShape !== S.currentShape) {
         morphToShape(newShape, 1.0);
     }
-    formScale = 100 + Math.random() * 150;
-    formChaos = Math.floor(Math.random() * 50);
-    hueOffset = Math.floor(Math.random() * 360);
-    colorMode = ['rainbow', 'hue', 'plasma', 'ocean', 'fire', 'ice', 'cyan', 'gold', 'neon', 'white'][Math.floor(Math.random() * 10)];
-    colorAnimation = ['static', 'scroll', 'wave', 'pulse'][Math.floor(Math.random() * 4)];
-    colorsDirty = true;
+    S.formScale = 100 + Math.random() * 150;
+    S.formChaos = Math.floor(Math.random() * 50);
+    S.hueOffset = Math.floor(Math.random() * 360);
+    S.colorMode = ['rainbow', 'hue', 'plasma', 'ocean', 'fire', 'ice', 'cyan', 'gold', 'neon', 'white'][Math.floor(Math.random() * 10)];
+    S.colorAnimation = ['static', 'scroll', 'wave', 'pulse'][Math.floor(Math.random() * 4)];
+    S.colorsDirty = true;
     updateParticles();
     updateUIFromState();
     showNotification('RANDOMIZED');
@@ -1304,7 +1190,7 @@ function copyCode() {
 function currentPositions(count) {
     const arr = geometry.attributes.position.array;
     const out = new Float32Array(count * 3);
-    const n = Math.min(count, particleCount);
+    const n = Math.min(count, S.particleCount);
     for (let i = 0; i < n; i++) {
         out[i * 3] = arr[i * 3];
         out[i * 3 + 1] = arr[i * 3 + 1];
@@ -1315,7 +1201,7 @@ function currentPositions(count) {
 
 function exportPly() {
     if (!geometry) return;
-    const count = particleCount;
+    const count = S.particleCount;
     const pos = currentPositions(count);
     downloadBlob(new Blob([buildPlyText(pos, count)], { type: 'text/plain' }), 'ether-resonance.ply');
     showNotification('PLY EXPORTED (' + count + ' VERTICES)');
@@ -1323,7 +1209,7 @@ function exportPly() {
 
 function exportObj() {
     if (!geometry) return;
-    const count = particleCount;
+    const count = S.particleCount;
     const pos = currentPositions(count);
     downloadBlob(new Blob([buildObjText(pos, count)], { type: 'text/plain' }), 'ether-resonance.obj');
     showNotification('OBJ EXPORTED (' + count + ' VERTICES)');
@@ -1331,7 +1217,7 @@ function exportObj() {
 
 function exportGlb() {
     if (!geometry) return;
-    const count = particleCount;
+    const count = S.particleCount;
     const pos = currentPositions(count);
     downloadBlob(new Blob([buildGlbBuffer(pos, count)], { type: 'model/gltf-binary' }), 'ether-resonance.glb');
     showNotification('GLB EXPORTED (' + count + ' VERTICES)');
@@ -1386,7 +1272,7 @@ async function handleUpload(type, file) {
         try {
             const img = await loadImageFile(file);
             const w = 320;
-            const h = Math.max(1, Math.ceil(particleCount / w));
+            const h = Math.max(1, Math.ceil(S.particleCount / w));
             const canvas = document.createElement('canvas');
             canvas.width = w;
             canvas.height = h;
@@ -1394,8 +1280,8 @@ async function handleUpload(type, file) {
             ctx.drawImage(img, 0, 0, w, h);
             const data = ctx.getImageData(0, 0, w, h).data;
             setOffsetSource({ type: 'image', data: data, w: w, h: h });
-            regenerateOffsets(particleCount);
-            colorsDirty = true;
+            regenerateOffsets(S.particleCount);
+            S.colorsDirty = true;
             updateParticles();
             showNotification('IMAGE APPLIED: ' + file.name);
         } catch (err) {
@@ -1426,7 +1312,7 @@ async function handleUpload(type, file) {
                 if (z < minz) minz = z; if (z > maxz) maxz = z;
             }
             const size = Math.max(maxx - minx, maxy - miny, maxz - minz) || 1;
-            const scale = (formScale * 2) / size;
+            const scale = (S.formScale * 2) / size;
             setOffsetSource({
                 type: 'model',
                 data: src,
@@ -1435,8 +1321,8 @@ async function handleUpload(type, file) {
                 cy: (miny + maxy) / 2 * scale,
                 cz: (minz + maxz) / 2 * scale
             });
-            regenerateOffsets(particleCount);
-            colorsDirty = true;
+            regenerateOffsets(S.particleCount);
+            S.colorsDirty = true;
             updateParticles();
             showNotification('MODEL APPLIED: ' + file.name);
         }, undefined, err => {
@@ -1478,24 +1364,24 @@ function initializeNeuralLink() {
 }
 
 function toggleLiveUpdate() {
-    liveUpdateEnabled = !liveUpdateEnabled;
+    S.liveUpdateEnabled = !S.liveUpdateEnabled;
     const btn = document.getElementById('btn-live-update');
     if (btn) {
-        btn.textContent = liveUpdateEnabled ? '⚡ LIVE: ON' : '⚡ LIVE UPDATE';
-        btn.style.background = liveUpdateEnabled ? 'rgba(0, 255, 100, 0.3)' : '';
+        btn.textContent = S.liveUpdateEnabled ? '⚡ LIVE: ON' : '⚡ LIVE UPDATE';
+        btn.style.background = S.liveUpdateEnabled ? 'rgba(0, 255, 100, 0.3)' : '';
     }
-    showNotification(liveUpdateEnabled ? 'LIVE UPDATE ENABLED' : 'LIVE UPDATE DISABLED');
+    showNotification(S.liveUpdateEnabled ? 'LIVE UPDATE ENABLED' : 'LIVE UPDATE DISABLED');
 }
 
 function togglePlayPause() {
-    isPaused = !isPaused;
+    S.isPaused = !S.isPaused;
     const btn = document.getElementById('btn-play-pause');
-    if (btn) btn.textContent = isPaused ? '▶️ Play' : '⏸️ Pause';
-    showNotification(isPaused ? 'PAUSED' : 'RESUMED');
+    if (btn) btn.textContent = S.isPaused ? '▶️ Play' : '⏸️ Pause';
+    showNotification(S.isPaused ? 'PAUSED' : 'RESUMED');
 }
 
 function copyPrompt() {
-    const prompt = 'Ether Resonance: ' + currentShape + ', ' + particleCount + ' particles, ' + colorMode + ' mode, animation ' + colorAnimation;
+    const prompt = 'Ether Resonance: ' + S.currentShape + ', ' + S.particleCount + ' particles, ' + S.colorMode + ' mode, animation ' + S.colorAnimation;
     navigator.clipboard.writeText(prompt).then(() => {
         showNotification('PROMPT COPIED!');
     });
@@ -1509,7 +1395,7 @@ function toggleGuide() {
 // FORM BUTTONS
 // ============================================
 function setForm(shape) {
-    if (shape !== currentShape) {
+    if (shape !== S.currentShape) {
         morphToShape(shape, 1.0);
     }
     document.getElementById('shape-select').value = shape;
@@ -1589,43 +1475,43 @@ function animate() {
         }
     }
 
-    if (!isPaused) {
-        time += simSpeed * 0.01;
+    if (!S.isPaused) {
+        S.time += S.simSpeed * 0.01;
     }
 
     // Audio reactivity (always sample; modulates shader + shapes)
     applyAudioFrame();
 
     // God Mode auto-director
-    if (godModeActive) godDirect();
+    if (S.godModeActive) godDirect();
 
     // Pulsar: breathing displacement on the live drawing mask
     if (drawingPad && drawingPad.pulsar && getOffsetSource()) {
-        const breathe = 0.6 + 0.4 * Math.sin(time * 2.2);
-        regenerateOffsets(particleCount, breathe);
+        const breathe = 0.6 + 0.4 * Math.sin(S.time * 2.2);
+        regenerateOffsets(S.particleCount, breathe);
     }
 
     // Particle field
     if (geometry && geometry.attributes && geometry.attributes.position) {
-        if (isMorphing) {
+        if (S.isMorphing) {
             advanceMorph(dt);
-        } else if (!isPaused) {
+        } else if (!S.isPaused) {
             updateParticles();
         }
     }
 
-    // Shader time + beat pulse on particle size
+    // Shader S.time + beat pulse on particle size
     let beatPulse = 0;
     if (audioEngine && audioEngine.active) {
         const f = audioEngine.getFrame();
         beatPulse = Math.max(0, f.beat ? 1 : f.level * 0.5);
     }
-    updateParticleMaterial(material, { time, beatPulse });
+    updateParticleMaterial(material, { time: S.time, beatPulse });
 
     // Starfield slow drift
     if (starfield) {
-        starfield.rotation.y = time * 0.005;
-        starfield.rotation.x = Math.sin(time * 0.003) * 0.05;
+        starfield.rotation.y = S.time * 0.005;
+        starfield.rotation.x = Math.sin(S.time * 0.003) * 0.05;
     }
 
     // Chromatic aberration breathes with music
@@ -1643,8 +1529,8 @@ function animate() {
     // Smooth zoom toward target distance
     if (camera) {
         const dist = camera.position.length();
-        if (Math.abs(dist - targetZoomDistance) > 0.1) {
-            camera.position.setLength(THREE.MathUtils.lerp(dist, targetZoomDistance, 0.08));
+        if (Math.abs(dist - S.targetZoomDistance) > 0.1) {
+            camera.position.setLength(THREE.MathUtils.lerp(dist, S.targetZoomDistance, 0.08));
         }
     }
 
@@ -1656,7 +1542,7 @@ function animate() {
     }
 
     // Render (trail via semi-transparent clear)
-    if (trailEnabled) {
+    if (S.trailEnabled) {
         renderer.autoClear = false;
         renderer.setClearColor(trailClearColor, 0.2);
         renderer.clear();

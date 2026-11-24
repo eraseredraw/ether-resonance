@@ -81,6 +81,7 @@ export const S = {
     starfieldEnabled: true,
     aberrationEnabled: false,
     asciiEnabled: false,
+    asciiScale: 1.0,
     pointerMagnet: false,
     pointerFxEnabled: false,
 
@@ -111,6 +112,7 @@ export const DEFAULT_CONFIG = {
     starfieldEnabled: true,
     aberrationEnabled: false,
     asciiEnabled: false,
+    asciiScale: 1.0,
     pointerFxEnabled: false
 };
 
@@ -135,6 +137,7 @@ export function collectConfig() {
         starfieldEnabled: S.starfieldEnabled,
         aberrationEnabled: S.aberrationEnabled,
         asciiEnabled: S.asciiEnabled,
+        asciiScale: S.asciiScale,
         pointerFxEnabled: S.pointerFxEnabled
     };
 }

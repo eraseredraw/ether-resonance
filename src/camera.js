@@ -29,8 +29,9 @@ let lastFrameTime = 0;
 let fpsEMA = 0;
 let onFrameCb = null;
 let onStatsCb = null;
+let gainEMA = 0;
 
-const stats = { active: false, error: '', w: 0, h: 0, fps: 0, frames: 0 };
+const stats = { active: false, error: '', w: 0, h: 0, fps: 0, frames: 0, gain: 1, mean: 0 };
 
 export function getCameraStats() {
     return stats;
@@ -70,6 +71,36 @@ function ensureBuffers(vw, vh) {
     stats.h = gridH;
 }
 
+// Auto-exposure: the particle grid quantises luminance into 10 glyph levels,
+// so a dim frame collapses to blanks and a blown frame saturates. Measure the
+// frame's peak luma, derive a gain that maps it near white, smooth it over
+// frames (EMA) so lighting changes don't strobe, then apply in place. The
+// buffer is refilled from getImageData every frame, so in-place scaling never
+// compounds. Uint8ClampedArray clamps at 255 on assignment.
+function autoExpose(data) {
+    const n = data.length;
+    let peak = 0;
+    let sum = 0;
+    for (let i = 0; i < n; i += 4) {
+        const l = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+        sum += l;
+        if (l > peak) peak = l;
+    }
+    const mean = sum / (n / 4);
+    let target = peak > 1 ? 235 / peak : 1;
+    target = Math.min(6, Math.max(1, target));
+    gainEMA = gainEMA ? gainEMA * 0.8 + target * 0.2 : target;
+    const g = gainEMA;
+    if (g !== 1) {
+        for (let i = 0; i < n; i += 4) {
+            data[i] *= g;
+            data[i + 1] *= g;
+            data[i + 2] *= g;
+        }
+    }
+    return { gain: g, mean: mean };
+}
+
 function grabFrame() {
     const vw = video.videoWidth;
     const vh = video.videoHeight;
@@ -85,6 +116,9 @@ function grabFrame() {
     ctx.restore();
     const tmp = ctx.getImageData(0, 0, gridW, gridH);
     persistentData.set(tmp.data);
+    const expo = autoExpose(persistentData);
+    stats.gain = expo.gain;
+    stats.mean = expo.mean;
     return buildPhotoSource(persistentImage, gridW, gridH);
 }
 
@@ -173,5 +207,25 @@ export function stopCamera() {
     persistentImage = null;
     gridW = 0;
     gridH = 0;
+    gainEMA = 0;
     stats.fps = 0;
+    stats.gain = 1;
+    stats.mean = 0;
+}
+
+// Flip front ↔ rear. Restarts the stream on the other face; buffers and the
+// exposure EMA survive only if the grid is unchanged (ensureBuffers keeps
+// them when w/h match). Returns the new facing mode, or '' on failure.
+export async function flipCamera() {
+    if (!stats.active) return '';
+    const next = facing === 'user' ? 'environment' : 'user';
+    const keepFrame = onFrameCb;
+    const keepStats = onStatsCb;
+    stopCamera();
+    const ok = await startCamera(keepFrame, keepStats, { facingMode: next });
+    return ok ? next : '';
+}
+
+export function getFacing() {
+    return facing;
 }

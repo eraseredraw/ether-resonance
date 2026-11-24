@@ -92,6 +92,8 @@ function updateUIFromState() {
     document.getElementById('starfield-toggle').checked = S.starfieldEnabled;
     document.getElementById('aberration-toggle').checked = S.aberrationEnabled;
     document.getElementById('ascii-toggle').checked = S.asciiEnabled;
+    document.getElementById('ascii-scale').value = S.asciiScale;
+    document.getElementById('ascii-scale-value').textContent = S.asciiScale.toFixed(1);
     document.getElementById('pointerfx-toggle').checked = S.pointerFxEnabled;
     updateHudFormName();
 }
@@ -325,9 +327,21 @@ function updateCameraOverlay(st) {
         el.textContent = '📷 ' + st.error;
         el.classList.add('err');
     } else {
-        el.textContent = '📷 LIVE ' + st.w + '×' + st.h + ' @' + Math.round(st.fps) + 'fps · frames ' + st.frames;
+        el.textContent = '📷 LIVE ' + (camera.getFacing() === 'user' ? 'FRONT' : 'REAR') +
+            ' ' + st.w + '×' + st.h + ' @' + Math.round(st.fps) + 'fps ×' + st.gain.toFixed(1);
         el.classList.remove('err');
     }
+}
+
+async function flipCameraMode() {
+    if (!cameraActive) return;
+    const facing = await camera.flipCamera();
+    if (!facing) {
+        showNotification('CAMERA FLIP FAILED');
+    } else {
+        showNotification(facing === 'user' ? 'CAMERA: FRONT' : 'CAMERA: REAR');
+    }
+    updateCameraOverlay();
 }
 
 function onCameraFrame(src) {
@@ -403,6 +417,7 @@ function writeConfigToState(cfg) {
     if (typeof cfg.starfieldEnabled === 'boolean') S.starfieldEnabled = cfg.starfieldEnabled;
     if (typeof cfg.aberrationEnabled === 'boolean') S.aberrationEnabled = cfg.aberrationEnabled;
     if (typeof cfg.asciiEnabled === 'boolean') S.asciiEnabled = cfg.asciiEnabled;
+    if (typeof cfg.asciiScale === 'number') S.asciiScale = cfg.asciiScale;
     if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
     return countChanged;
 }
@@ -773,6 +788,10 @@ function setupEventListeners() {
     document.getElementById('starfield-toggle')?.addEventListener('change', e => render.setSceneToggle('starfield', e.target.checked));
     document.getElementById('aberration-toggle')?.addEventListener('change', e => render.setSceneToggle('aberration', e.target.checked));
     document.getElementById('ascii-toggle')?.addEventListener('change', e => render.setSceneToggle('ascii', e.target.checked));
+    document.getElementById('ascii-scale').addEventListener('input', e => {
+        render.setAsciiScale(parseFloat(e.target.value));
+        document.getElementById('ascii-scale-value').textContent = e.target.value;
+    });
 
     // --- Pointer FX (magnet/repulse/wave), off by default ---
     document.getElementById('pointerfx-toggle')?.addEventListener('change', e => {
@@ -846,6 +865,7 @@ function setupEventListeners() {
     document.getElementById('btn-load-cloud')?.addEventListener('click', loadCloudShape);
     document.getElementById('btn-photo')?.addEventListener('click', togglePhotoMode);
     document.getElementById('btn-camera')?.addEventListener('click', toggleCameraMode);
+    document.getElementById('btn-camera-flip')?.addEventListener('click', flipCameraMode);
 
     // --- Drawing pad ---
     const drawingPadInstance = new DrawingPad(() => {
@@ -1022,4 +1042,4 @@ export { showNotification, updateLoading, setAudioStatus, updateHudFormName, upd
     applyConfig, savePreset, loadPreset, publishPreset, loadCloudShape, exportCode, copyCode,
     exportPly, exportObj, exportGlb, uploadFile, handleUpload, loadImageFile, buildPhotoSourceFromImage ,
     setupEventListeners, setupDragAndDrop, randomize, setForm, setAspectRatio,
-    writeConfigToState, reset, toggleCameraMode };
+    writeConfigToState, reset, toggleCameraMode, flipCameraMode };

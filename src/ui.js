@@ -8,7 +8,7 @@
 // render.js is imported for the drawing-pad instance bridge
 // (toggleDrawingPad / selectTool read render.getDrawingPad()).
 // ============================================
-import { S, MAX_PARTICLES, CLOUD_SHAPES, collectConfig } from './state.js';
+import { S, MAX_PARTICLES, DEFAULT_CONFIG, CLOUD_SHAPES, collectConfig } from './state.js';
 import { SHAPES, setMouseState, setMouseMode, getOffsetSource, setOffsetSource, regenerateOffsets, buildPhotoSource, writeShapePosition } from './shapes.js';
 import { writeParticleColor } from './colors.js';
 import { AudioEngine } from './audio.js';
@@ -304,8 +304,7 @@ function togglePhotoMode() {
 // ============================================
 // CONFIG (presets, URL, cloud)
 // ============================================
-function applyConfig(cfg) {
-    if (!cfg) return;
+function writeConfigToState(cfg) {
     let countChanged = false;
     if (typeof cfg.particleCount === 'number' && cfg.particleCount !== S.particleCount) {
         S.particleCount = Math.min(MAX_PARTICLES, Math.max(1000, cfg.particleCount));
@@ -329,7 +328,12 @@ function applyConfig(cfg) {
     if (typeof cfg.starfieldEnabled === 'boolean') S.starfieldEnabled = cfg.starfieldEnabled;
     if (typeof cfg.aberrationEnabled === 'boolean') S.aberrationEnabled = cfg.aberrationEnabled;
     if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
+    return countChanged;
+}
 
+function applyConfig(cfg) {
+    if (!cfg) return;
+    const countChanged = writeConfigToState(cfg);
     render.applyConfigRender(countChanged);
     updateUIFromState();
 }
@@ -888,6 +892,14 @@ function setAspectRatio(ratio) {
 }
 
 // ============================================
+// RANDOMIZE / RESET
+// ============================================
+function reset() {
+    applyConfig(DEFAULT_CONFIG);
+    showNotification('RESET TO DEFAULTS');
+}
+
+// ============================================
 // UI HOOKS — 8 methods consumed by render.js
 // Exact DOM bodies per Part 1 of the refactor spec; render.js never touches
 // the DOM directly.
@@ -931,4 +943,5 @@ export { showNotification, updateLoading, setAudioStatus, updateHudFormName, upd
     startMic, startSystemAudio, loadAudioTrack, stopAudio, toggleGodMode, togglePhotoMode,
     applyConfig, savePreset, loadPreset, publishPreset, loadCloudShape, exportCode, copyCode,
     exportPly, exportObj, exportGlb, uploadFile, handleUpload, loadImageFile, buildPhotoSourceFromImage ,
-    setupEventListeners, setupDragAndDrop, randomize, setForm, setAspectRatio };
+    setupEventListeners, setupDragAndDrop, randomize, setForm, setAspectRatio,
+    writeConfigToState, reset };

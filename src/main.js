@@ -10,10 +10,7 @@
 // ============================================
 import * as THREE from 'three';
 
-import {
-    S,
-    DEFAULT_CONFIG
-} from './state.js';
+import { S } from './state.js';
 import * as render from './render.js';
 import * as ui from './ui.js';
 
@@ -96,23 +93,6 @@ function init() {
 // EVENT LISTENERS
 // ============================================
 // ============================================
-// DRAG & DROP
-// ============================================
-// ============================================
-// RANDOMIZE / RESET
-// ============================================
-function reset() {
-    ui.applyConfig(DEFAULT_CONFIG);
-    ui.showNotification('RESET TO DEFAULTS');
-}
-
-// ============================================
-// FORM BUTTONS
-// ============================================
-// ============================================
-// ASPECT RATIO
-// ============================================
-// ============================================
 // VISIBILITY: stop burning GPU and battery in a hidden tab
 // ============================================
 // requestAnimationFrame is throttled in background tabs but it does not stop,
@@ -137,7 +117,7 @@ window.addEventListener('pagehide', () => render.setLoopRunning(false));
 window.savePreset = ui.savePreset;
 window.loadPreset = ui.loadPreset;
 window.randomize = ui.randomize;
-window.reset = reset;
+window.reset = ui.reset;
 window.toggleFullscreen = ui.toggleFullscreen;
 window.toggleHUD = ui.toggleHUD;
 window.toggleControls = ui.toggleControls;

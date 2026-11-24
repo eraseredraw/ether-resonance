@@ -16,7 +16,7 @@ import {
     setFormScaleMod, setFormRotationSpeedMod,
     setOffsetSource, getOffsetSource, clearOffsets, regenerateOffsets,
     writePositionsToArray, writeShapePosition,
-    setMouseState, triggerWave
+    setMouseState, setMouseMode, triggerWave
 } from './shapes.js';
 import {
     setColorState, setHueOffsetMod, setColorTime,
@@ -46,7 +46,19 @@ let isPaused = false;
 let liveUpdateEnabled = false;
 
 const MAX_PARTICLES = 100000;
-let particleCount = 40000;
+
+// Mobile particle budget. A mid-range phone GPU with UnrealBloom chokes on
+// 40K sprites; the old fixed default made the first load on a phone look
+// broken rather than heavy. Coarse pointer + small screen is a cheap proxy
+// for "handset"; a desktop with a touch monitor keeps the full count. The
+// slider still lets anyone go back up to MAX_PARTICLES by hand.
+function defaultParticleBudget() {
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const small = Math.min(screen.width || 9999, screen.height || 9999) < 820;
+    return coarse && small ? 15000 : 40000;
+}
+
+let particleCount = defaultParticleBudget();
 let positions, colors;
 
 // Particle field state
@@ -61,7 +73,7 @@ let formChaos = 0;
 
 let colorMode = 'ice';
 let hueOffset = 0;
-let colorSaturation = 0.8;
+const colorSaturation = 0.8;
 let colorAnimation = 'static';
 
 let bloomEnabled = true;
@@ -116,7 +128,7 @@ let camTarget = null;
 
 // Pointer interaction
 let pointerActive = false;
-let pointerWorld = new THREE.Vector3(0, 0, 0);
+const pointerWorld = new THREE.Vector3(0, 0, 0);
 const pointerRaycaster = new THREE.Raycaster();
 const pointerPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
@@ -236,6 +248,15 @@ function init() {
         }, 300);
 
         console.log('✅ Ether Resonance initialized successfully!');
+        // Sync the slider/label to the budget actually chosen above — the
+        // markup ships value="40000" and would otherwise lie on phones.
+        const pcSlider = document.getElementById('particle-count-slider');
+        if (pcSlider) {
+            pcSlider.value = String(particleCount);
+            const lbl = document.getElementById('particle-count-value');
+            if (lbl) lbl.textContent = (particleCount / 1000) + 'K';
+        }
+
         isInitialized = true;
         setLoopRunning(true);
     } catch (error) {

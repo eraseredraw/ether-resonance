@@ -32,3 +32,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+# Visual regression scratch (golden.png IS committed)
+tests/actual.png
+tests/diff.png

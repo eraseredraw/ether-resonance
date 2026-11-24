@@ -49,8 +49,8 @@ export function buildObjText(pos, count) {
 
 // --- GLB (pure) ------------------------------------------------------
 export function buildGlbBuffer(pos, count) {
-    let min = [Infinity, Infinity, Infinity];
-    let max = [-Infinity, -Infinity, -Infinity];
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
     for (let i = 0; i < count; i++) {
         for (let k = 0; k < 3; k++) {
             const v = pos[i * 3 + k];

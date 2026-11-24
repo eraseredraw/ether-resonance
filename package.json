@@ -25,12 +25,20 @@
     "serve": "python -m http.server 8080",
     "check": "node --check src/main.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint src scripts",
+    "golden": "node scripts/golden.mjs",
+    "golden:update": "node scripts/golden.mjs --update"
   },
   "dependencies": {
     "three": "0.160.0"
   },
   "devDependencies": {
+    "eslint": "^9.39.5",
+    "globals": "^17.14.0",
+    "pixelmatch": "^8.0.0",
+    "pngjs": "^7.0.0",
+    "puppeteer": "^25.18.1",
     "vitest": "^2.1.8"
   },
   "engines": {

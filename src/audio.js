@@ -177,6 +177,18 @@ export class AudioEngine {
         return this.audioElement.currentTime / this.audioElement.duration;
     }
 
+    // Suspend the graph without releasing the microphone: the user already
+    // granted it, and calling getUserMedia again on return would re-prompt on
+    // browsers that treat it as a fresh capture. Only the DSP stops, which is
+    // what actually costs CPU/battery in a hidden tab.
+    suspend() {
+        if (this.ctx && this.ctx.state === 'running') this.ctx.suspend();
+    }
+
+    resume() {
+        if (this.active && this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    }
+
     stop() {
         this.active = false;
         if (this.stream) {
@@ -203,6 +215,15 @@ export class AudioEngine {
         if (this.analyser) {
             try { this.analyser.disconnect(); } catch (e) { /* noop */ }
             this.analyser = null;
+        }
+        // Close the context, not just the nodes: an open AudioContext keeps an
+        // audio thread alive for the lifetime of the page, and every start/stop
+        // cycle used to leak one. _setupStream() creates a fresh context when
+        // this.ctx is null, so nulling it here is what makes the next start
+        // correct instead of resuming a closed context.
+        if (this.ctx) {
+            try { this.ctx.close(); } catch (e) { /* noop */ }
+            this.ctx = null;
         }
         this.mode = null;
         this.fileName = null;

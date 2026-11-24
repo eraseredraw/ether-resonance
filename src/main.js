@@ -237,7 +237,7 @@ function init() {
 
         console.log('✅ Ether Resonance initialized successfully!');
         isInitialized = true;
-        animate();
+        setLoopRunning(true);
     } catch (error) {
         console.error('❌ Initialization error:', error);
         const status = document.getElementById('load-status');
@@ -1544,8 +1544,10 @@ function showNotification(message) {
 // ============================================
 const trailClearColor = new THREE.Color(0x000005);
 
+let rafId = 0;
+
 function animate() {
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
 
     const now = performance.now();
     const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
@@ -1643,6 +1645,36 @@ function animate() {
         composer.render();
     }
 }
+
+// ============================================
+// VISIBILITY: stop burning GPU and battery in a hidden tab
+// ============================================
+// requestAnimationFrame is throttled in background tabs but it does not stop,
+// so on a phone the WebGL context keeps the GPU awake and the audio analyser
+// keeps sampling. Cancel the loop outright when the tab is hidden.
+function setLoopRunning(run) {
+    if (run && !rafId) {
+        // Reset the clock: otherwise the first frame after a long sleep sees a
+        // huge dt and jumps the simulation (it is clamped, but it still jumps).
+        lastFrameTime = performance.now();
+        rafId = requestAnimationFrame(animate);
+    } else if (!run && rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+    }
+}
+
+document.addEventListener('visibilitychange', () => {
+    const hidden = document.hidden;
+    setLoopRunning(!hidden);
+    // The render loop is the big cost, but an FFT at 60 Hz is not free either.
+    // suspend() keeps the microphone grant; resume() is guarded by active, so a
+    // hidden tab does not bring back audio the user had stopped.
+    if (audioEngine) hidden ? audioEngine.suspend() : audioEngine.resume();
+});
+// pagehide fires on mobile when the app is swiped away or bfcached — the one
+// place visibilitychange is unreliable.
+window.addEventListener('pagehide', () => setLoopRunning(false));
 
 // ============================================
 // LOADING HELPER

@@ -3,13 +3,26 @@
 **Interactive 3D particle visualization of trigonometric organisms — Three.js + WebGL.**
 
 [![CI](https://github.com/eraseredraw/ether-resonance/actions/workflows/ci.yml/badge.svg)](https://github.com/eraseredraw/ether-resonance/actions/workflows/ci.yml)
-[![Tests](https://img.shields.io/badge/tests-60%20passed-brightgreen.svg)](tests)
+[![Tests](https://img.shields.io/badge/tests-69%20passed-brightgreen.svg)](tests)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Three.js](https://img.shields.io/badge/three.js-r160-blueviolet.svg)](https://threejs.org)
 
 > 40 000 particles morphing between 10 trigonometric organisms, driven by your voice, music, drawings and uploaded 3D models — in real time.
 
-<!-- TODO: add screenshots/demo.gif — record via 🎬 Record Video and drop frames here -->
+<!-- TODO: add screenshots/demo.gif — record via 🎬 Record Video and drop frames here
+     (og:image was removed rather than left pointing at a missing og.png) -->
+
+## What CI actually checks
+
+| Step | Why it is there |
+| --- | --- |
+| `node --check src/*.js` | syntax of every module, not just `main.js` |
+| `npm ci` + `npm test` | 69 unit tests on the pure logic (shapes, colors, audio bands/beat, exporters) |
+| HTML tag balance | the page is 470 lines of hand-written markup, one unclosed `div` breaks the HUD |
+| `docker build` | the nginx image still builds |
+
+The maths-heavy parts are deliberately not tested: WebGL output cannot be
+asserted without a GPU. See *Roadmap* for the golden-frame idea.
 
 ## Live Demo
 
@@ -124,3 +137,31 @@ Pure math lives in isolated modules, so it is fully unit-testable in Node:
 ## License
 
 MIT — see [LICENSE](LICENSE)
+## Notes on this revision
+
+- **Three.js is vendored, not fetched from a CDN.** `vendor/three/` holds
+  `three.module.js` plus the 11 addon files the app imports (resolved
+  recursively, 1.5 MB). Before this the importmap pulled r160 from unpkg while
+  `package.json` allowed `^0.160.0`, so the browser and the tests could run
+  different versions, and a unpkg outage took the demo down. The page now works
+  offline and the version in the browser is the version under test.
+- **The render loop stops in a hidden tab.** `requestAnimationFrame` is
+  throttled but not cancelled, so a backgrounded phone kept the GPU busy and
+  kept sampling the microphone. `visibilitychange`/`pagehide` cancel the loop
+  and suspend the `AudioContext`; the clock is reset on resume so the first
+  frame back does not jump the simulation.
+- **`AudioEngine.stop()` closes its context.** It used to disconnect nodes and
+  leave the `AudioContext` open, leaking one audio thread per start/stop cycle.
+
+## Roadmap (not done, ranked)
+
+1. **Golden-frame visual regression.** Puppeteer + SwiftShader in CI, fixed seed,
+   compare one PNG against `tests/golden.png` with pixelmatch. Turns "it looks
+   fine" into a failing diff when a shader changes.
+2. **Split `main.js`.** 1686 lines, ~160 functions, mixing state, UI wiring and
+   the render loop. Extract `state.js` (pure reducers — testable, which is why
+   tests cover modules but not main), `ui.js`, `render.js`.
+3. **Self-host the fonts.** Space Grotesk / IBM Plex Mono come from the Google
+   CDN; same argument as the vendored Three.js.
+4. **Mobile particle budget.** Scale the default count by `devicePixelRatio` and
+   available memory instead of capping DPR at 2.

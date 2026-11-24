@@ -4,9 +4,9 @@
 // render.js consumes through setUiHooks() (installed by main.js at the top
 // of init()).
 // ============================================
-// S1 SCAFFOLD — main.js still owns every function and still declares its own
-// copies of the helpers below; the duplication is intentional and is removed
-// in S3, which moves the UI leaf functions here for good.
+// S2 STATE — main.js still owns the UI leaf functions and still declares its
+// own copies of the helpers below; the duplication is intentional and is
+// removed in S3, which moves the UI leaf functions here for good.
 // ============================================
 import { S } from './state.js';
 
@@ -52,18 +52,14 @@ function setAudioStatus(text, cls) {
     el.className = 'audio-status' + (cls ? ' ' + cls : '');
 }
 
-// The playback hook reads the audio engine instance. Until the audio
-// functions move out of main.js (S4) and render.js exposes its instance
-// bridge (setAudioEngine/getAudioEngine), this stays null and the hook is a
-// guarded no-op. Nothing calls it during S1: render.js has no frame loop yet.
-let audioEngine = null;
-
-function updatePlaybackUI() {
-    if (!audioEngine) return;
+// Playback hook: DOM only. render.js reads the audio engine itself and hands
+// over the two computed values (Appendix A4) — this module never touches the
+// engine instance.
+function updatePlaybackUI(playing, progress) {
     const btn = document.getElementById('btn-play-pause-track');
-    if (btn) btn.textContent = audioEngine.isPlaying() ? '⏸️' : '▶️';
+    if (btn) btn.textContent = playing ? '⏸️' : '▶️';
     const seek = document.getElementById('audio-seek');
-    if (seek) seek.value = Math.round(audioEngine.getProgress() * 100);
+    if (seek) seek.value = Math.round(progress * 100);
 }
 
 // ============================================
@@ -93,8 +89,8 @@ export const uiHooks = {
         document.getElementById('audio-intensity').value = v;
         document.getElementById('audio-intensity-value').textContent = v.toFixed(2);
     },
-    updatePlaybackUI() {
-        updatePlaybackUI();
+    updatePlaybackUI(playing, progress) {
+        updatePlaybackUI(playing, progress);
     },
     updateHudFormName() {
         updateHudFormName();
@@ -104,4 +100,4 @@ export const uiHooks = {
     }
 };
 
-export { showNotification, updateLoading, setAudioStatus, updateHudFormName };
+export { showNotification, updateLoading, setAudioStatus, updateHudFormName, updatePlaybackUI };

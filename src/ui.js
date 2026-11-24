@@ -91,6 +91,7 @@ function updateUIFromState() {
     document.getElementById('twinkle-toggle').checked = S.twinkleEnabled;
     document.getElementById('starfield-toggle').checked = S.starfieldEnabled;
     document.getElementById('aberration-toggle').checked = S.aberrationEnabled;
+    document.getElementById('ascii-toggle').checked = S.asciiEnabled;
     document.getElementById('pointerfx-toggle').checked = S.pointerFxEnabled;
     updateHudFormName();
 }
@@ -401,6 +402,7 @@ function writeConfigToState(cfg) {
     if (typeof cfg.twinkleEnabled === 'boolean') S.twinkleEnabled = cfg.twinkleEnabled;
     if (typeof cfg.starfieldEnabled === 'boolean') S.starfieldEnabled = cfg.starfieldEnabled;
     if (typeof cfg.aberrationEnabled === 'boolean') S.aberrationEnabled = cfg.aberrationEnabled;
+    if (typeof cfg.asciiEnabled === 'boolean') S.asciiEnabled = cfg.asciiEnabled;
     if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
     return countChanged;
 }
@@ -770,6 +772,7 @@ function setupEventListeners() {
     // --- Scene toggles ---
     document.getElementById('starfield-toggle')?.addEventListener('change', e => render.setSceneToggle('starfield', e.target.checked));
     document.getElementById('aberration-toggle')?.addEventListener('change', e => render.setSceneToggle('aberration', e.target.checked));
+    document.getElementById('ascii-toggle')?.addEventListener('change', e => render.setSceneToggle('ascii', e.target.checked));
 
     // --- Pointer FX (magnet/repulse/wave), off by default ---
     document.getElementById('pointerfx-toggle')?.addEventListener('change', e => {

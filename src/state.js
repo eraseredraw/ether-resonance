@@ -80,6 +80,7 @@ export const S = {
     // Scene extras
     starfieldEnabled: true,
     aberrationEnabled: false,
+    asciiEnabled: false,
     pointerMagnet: false,
     pointerFxEnabled: false,
 
@@ -109,6 +110,7 @@ export const DEFAULT_CONFIG = {
     twinkleEnabled: true,
     starfieldEnabled: true,
     aberrationEnabled: false,
+    asciiEnabled: false,
     pointerFxEnabled: false
 };
 
@@ -132,6 +134,7 @@ export function collectConfig() {
         twinkleEnabled: S.twinkleEnabled,
         starfieldEnabled: S.starfieldEnabled,
         aberrationEnabled: S.aberrationEnabled,
+        asciiEnabled: S.asciiEnabled,
         pointerFxEnabled: S.pointerFxEnabled
     };
 }

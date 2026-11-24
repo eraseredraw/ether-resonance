@@ -113,6 +113,81 @@ export function createRGBShiftPass(amount = 0.003) {
 }
 
 // ============================================
+// ASCII POST-PROCESSING pass
+// ============================================
+// Terminal-style render: the frame is divided into character cells, each
+// cell's luminance picks a glyph from a runtime-built atlas (dark→bright,
+// space→@), the glyph is tinted with the cell's colour. Disabled by default
+// (pass.enabled); zero cost while off.
+export const ASCII_GLYPHS = ' .:-=+*#%@';
+
+export function buildAsciiAtlas(cellW = 16, cellH = 16) {
+    const n = ASCII_GLYPHS.length;
+    const c = document.createElement('canvas');
+    c.width = cellW * n;
+    c.height = cellH;
+    const g = c.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, c.width, c.height);
+    g.fillStyle = '#fff';
+    g.font = 'bold ' + Math.floor(cellH * 0.85) + 'px monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (let i = 0; i < n; i++) {
+        g.fillText(ASCII_GLYPHS[i], i * cellW + cellW / 2, cellH / 2 + 1);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    return tex;
+}
+
+export const ASCII_FRAGMENT = `
+uniform sampler2D tDiffuse;
+uniform sampler2D uAtlas;
+uniform vec2 uResolution;
+uniform vec2 uCell;
+varying vec2 vUv;
+
+float lum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+void main() {
+    vec2 cells = max(floor(uResolution / uCell), vec2(1.0));
+    vec2 idx = floor(vUv * cells);
+    vec2 center = (idx + 0.5) / cells;
+    vec3 scene = texture2D(tDiffuse, center).rgb;
+    float l = lum(scene);
+    float n = ${ASCII_GLYPHS.length}.0;
+    float gi = clamp(floor(l * n), 0.0, n - 1.0);
+    vec2 local = fract(vUv * cells);
+    vec2 auv = vec2((gi + local.x) / n, local.y);
+    float glyph = texture2D(uAtlas, auv).r;
+    gl_FragColor = vec4(scene * glyph, 1.0);
+}
+`;
+
+export function createAsciiPass(atlas, cellW = 18, cellH = 22) {
+    return new ShaderPass({
+        uniforms: {
+            tDiffuse: { value: null },
+            uAtlas: { value: atlas },
+            uResolution: { value: new THREE.Vector2(1, 1) },
+            uCell: { value: new THREE.Vector2(cellW, cellH) }
+        },
+        vertexShader: `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+        fragmentShader: ASCII_FRAGMENT
+    });
+}
+
+// ============================================
 // STARFIELD background
 // ============================================
 export function createStarfield(count = 1200, radius = 1400) {

@@ -29,7 +29,7 @@ import {
 } from './colors.js';
 import {
     createParticleMaterial, updateParticleMaterial,
-    createRGBShiftPass, createStarfield
+    createRGBShiftPass, createStarfield, createAsciiPass, buildAsciiAtlas
 } from './shaders.js';
 import {
     S,
@@ -67,6 +67,7 @@ let drawingPad = null;
 // Scene extras
 let starfield = null;
 let rgbShiftPass = null;
+let asciiPass = null;
 
 // Camera preset target (smooth glide)
 let camTarget = null;
@@ -423,6 +424,12 @@ function setupPostProcessing() {
     rgbShiftPass.enabled = S.aberrationEnabled;
     composer.addPass(rgbShiftPass);
 
+    // ASCII pass LAST — it renders glyphs over the fully processed frame
+    asciiPass = createAsciiPass(buildAsciiAtlas());
+    asciiPass.enabled = S.asciiEnabled;
+    composer.addPass(asciiPass);
+    renderer.getDrawingBufferSize(asciiPass.uniforms.uResolution.value);
+
     window.adjustBloomQuality = function (fps) {
         if (fps < 30) {
             bloomPass.strength = Math.max(0.5, S.bloomIntensity * 0.5);
@@ -616,6 +623,7 @@ function applyAspect() {
     if (!renderer) return;
     renderer.setSize(w, h);
     composer.setSize(w, h);
+    if (asciiPass) renderer.getDrawingBufferSize(asciiPass.uniforms.uResolution.value);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.domElement.style.marginLeft = Math.max(0, Math.floor((cw - w) / 2)) + 'px';
@@ -744,6 +752,7 @@ function applyConfigRender(countChanged) {
     updateParticleMaterial(material, { size: S.particleSize, twinkle: S.twinkleEnabled });
     if (bloomPass) bloomPass.strength = S.bloomIntensity;
     if (rgbShiftPass) rgbShiftPass.enabled = S.aberrationEnabled;
+    if (asciiPass) asciiPass.enabled = S.asciiEnabled;
     if (starfield) starfield.visible = S.starfieldEnabled;
     if (!S.pointerFxEnabled) setMouseState(-9999, -9999, 0);
     if (controls) {

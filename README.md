@@ -139,7 +139,12 @@ Pure math lives in isolated modules, so it is fully unit-testable in Node:
 MIT — see [LICENSE](LICENSE)
 ## Notes on this revision
 
-- **Three.js is vendored, not fetched from a CDN.** `vendor/three/` holds
+- **Three.js is vendored, not fetched from a CDN.** Directory is `lib/three`,
+  not `vendor/three`: the repo's `.gitignore` had an unanchored `build/`, which
+  silently swallowed `vendor/three/build/three.module.js`, and the Pages
+  artifact shipped at 98 KB instead of ~500 KB — a deploy that would have
+  broken the live demo. Unanchored ignore patterns are the bug; `build/` is now
+  `/build/`, and the vendored path avoids the name entirely. `lib/three/` holds
   `three.module.js` plus the 11 addon files the app imports (resolved
   recursively, 1.5 MB). Before this the importmap pulled r160 from unpkg while
   `package.json` allowed `^0.160.0`, so the browser and the tests could run

@@ -29,7 +29,7 @@ import {
 } from './colors.js';
 import {
     createParticleMaterial, updateParticleMaterial,
-    createRGBShiftPass, createStarfield, createAsciiPass, buildAsciiAtlas, ASCII_SETS
+    createRGBShiftPass, createStarfield, createAsciiPass, buildAsciiAtlas, buildPhraseAtlas, ASCII_SETS
 } from './shaders.js';
 import {
     S,
@@ -69,6 +69,7 @@ let starfield = null;
 let rgbShiftPass = null;
 let asciiPass = null;
 let asciiSetIdx = 0;
+let asciiPhraseTex = null;
 
 // Camera preset target (smooth glide)
 let camTarget = null;
@@ -431,6 +432,11 @@ function setupPostProcessing() {
     // ASCII pass LAST — it renders glyphs over the fully processed frame
     asciiPass = createAsciiPass(buildAsciiAtlas(S.asciiSet));
     asciiSetIdx = ((S.asciiSet || 0) % ASCII_SETS.length + ASCII_SETS.length) % ASCII_SETS.length;
+    const ph = buildPhraseAtlas(asciiSetIdx);
+    asciiPass.uniforms.uPhrase.value = ph.tex;
+    asciiPass.uniforms.uPhraseRows.value = ph.rows;
+    asciiPass.uniforms.uPhraseChance.value = ph.chance;
+    asciiPhraseTex = ph.tex;
     asciiPass.enabled = S.asciiEnabled;
     setAsciiScale(S.asciiScale || 1);
     setAsciiRate(S.asciiRate || 2);
@@ -680,6 +686,13 @@ function setAsciiSet(i) {
         const old = asciiPass.uniforms.uAtlas.value;
         asciiPass.uniforms.uAtlas.value = buildAsciiAtlas(idx);
         if (old && old.dispose) old.dispose();
+        const oldPhrase = asciiPhraseTex;
+        const ph = buildPhraseAtlas(idx);
+        asciiPass.uniforms.uPhrase.value = ph.tex;
+        asciiPass.uniforms.uPhraseRows.value = ph.rows;
+        asciiPass.uniforms.uPhraseChance.value = ph.chance;
+        asciiPhraseTex = ph.tex;
+        if (oldPhrase && oldPhrase.dispose) oldPhrase.dispose();
     }
 }
 

@@ -126,68 +126,138 @@ export const ASCII_VARIANTS = 4;
 
 // Each set: 10 slots dark→bright, each slot up to 4 variants (padded).
 // Multi-char tokens are squeezed into the cell to fit.
+// Each set: 10 slots dark->bright, each slot up to 4 variants (padded).
+// Multi-char tokens are squeezed into the cell to fit. Mood sets also carry
+// `phrases` -- whole caption lines rendered into a phrase atlas: occasionally
+// a cell ROW is replaced by one of them, so detached RU/EN sentence
+// fragments slip through the glyph field.
+export const ASCII_PHRASE_CELLS = 32;
+
 export const ASCII_SETS = [
-    { name: 'Classic', slots: [
+    { name: 'Classic', phrases: [], slots: [
         [' ', ' ', '·', ' '], ['.', "'", '·', '.'], [':', '-', ':', '.'],
         ['=', '+', '-', ':'], ['+', '*', '=', '+'], ['*', '#', '*', '='],
         ['#', '%', '#', '*'], ['%', '@', '&', '#'], ['@', '#', '@', '%'],
         ['@', '@', '▓', '@']
     ] },
-    { name: 'Eternal', slots: [
-        [' ', ' ', '·', ' '], ['·e', '.', '·t', ','], [':e', ';t', ':n', '.l'],
-        ['et', 'en', 'te', 'ne'], ['E', 'T', 'N', 'L'], ['ET', 'NT', 'RN', 'AL'],
-        ['EΛ', 'TΞ', 'Nθ', 'Lλ'], ['ΞE', 'λT', 'θN', '∞L'], ['E∞', 'λΞ', 'θθ', 'N∞'],
-        ['@∞', 'Λ@', '∞∞', 'ΞN']
+    { name: 'Eternal', phrases: [
+        'eternal return', 'ничего не вечно', 'the loop again', 'time is flat',
+        'всё повторится', 'forever is a lie', 'снова и снова', 'no beginning',
+        'конец это старт', 'life loops', 'nothing lasts', 'вне времени'
+    ], slots: [
+        [' ', ' ', '· ', ' '], ['·', 'et', '∞', 'er'], ['et', 'er', 'nt', 'al'],
+        ['ern', 'al', 'no', 're'], ['ET', 'RN', 'AL', '∞'], ['ERN', 'AL', 'ET', 'NE'],
+        ['ETRN', 'ALW', '∞N', 'LOOP'], ['ETERN', 'AL', '∞∞∞', 'LOOP'],
+        ['eternal', 'always', '∞∞∞∞', 'NEVER'], ['ETERNAL', '∞∞∞∞∞', 'AGAIN@', 'ΞTERNAL']
     ] },
-    { name: 'Ethereal', slots: [
-        [' ', ' ', '  ', ' '], ['·', '˙', '.', '·'], [':*', '˙+', '·*', '.˚'],
-        ['˚*', '*˚', '+·', '˚+'], ['*✧', '✧*', '˚✦', '✦˚'], ['✦✧', '✧✦', '✴˚', '˚✴'],
-        ['✴✦', '✧✴', '❉✧', '✦❉'], ['✜✦', '❉✴', '✧✺', '✴✜'], ['✺❉', '✜✺', '✦✪', '✺✧'],
-        ['✪✺', '✺✺', '❉❉', '✜✪']
+    { name: 'Ethereal', phrases: [
+        'невесомость', 'floating away', 'сквозь сон', 'soft static',
+        'туман и свет', 'dream logic', 'мимо нас', 'drift forever',
+        'тихий свет', 'почти сон', 'weightless', 'где-то далеко'
+    ], slots: [
+        [' ', '  ', ' ', '  '], ['·', '˙', 'dr', 'ft'], ['dr', 'ft', 'so', 'st'],
+        ['soft', 'drift', 'fog', 'air'], ['SOFT', 'DR', 'FL', 'миг'],
+        ['FLOAT', 'DRIFT', 'миг', 'СОН'], ['DREAM', 'FOG', 'СОН', 'FLY'],
+        ['FLOAT', 'СОН', 'dream', 'drift'], ['floating', 'dreams', 'сквозь', 'сон'],
+        ['FLOATING', 'СКВОЗЬ СОН', 'dream∞', 'SOFT LIGHT']
     ] },
-    { name: 'Evil', slots: [
-        [' ', ' ', '  ', ' '], ['.', "'", '`', '·'], [':x', ';v', '.x', "'v"],
-        ['xv', 'vx', '/\\', '\\/'], ['xX', 'Xx', 'vV', '▼▲'], ['XV', 'VX', '/‖', '\\‖'],
-        ['▲▼', '▮▯', 'x▮', 'X▲'], ['▓▒', '▒▓', '██', '▓█'], ['█▓', '██', '▓█', '██'],
-        ['☠█', '█☠', '██', '▓☠']
+    { name: 'Deathcore', phrases: [
+        'deathcore', 'burn it down', 'смерть и мрак', 'no god no hope',
+        'кровь на стенах', 'rot away', 'doom forever', 'зло',
+        'break the sky', 'финал близко', 'hate feeds', 'nothing holy'
+    ], slots: [
+        [' ', '  ', ' ', '  '], ['.', '·x', '`x', "''"], ['rot', 'vx', 'xv', '/\\'],
+        ['xX', 'vV', 'gore', 'rot'], ['ROTX', 'gore', 'xXx', 'dead'],
+        ['DEAD', 'ROTX', 'gore', 'xX'], ['DEATH', 'BLOOD', 'rot', 'xXx'],
+        ['DEATH', 'CORE', 'hate', 'void'], ['DEATHCORE', 'no god', 'void', 'hate'],
+        ['DEATHCORE@', '☠ VOID', 'ROT∞', 'HATE']
     ] },
-    { name: 'Emo', slots: [
-        [' ', '  ', ' ', '  '], ['._', '._', '·_', '._'], [':(', '._.', ';_;', ':c'],
-        [':/', '(-_', ':(', '._.'], [';_;', 'x_x', ':c', '(-_-)'], ['T_T', ':(', 'x_x', ';n;'],
-        [":@" , ":'(", 'xX', 'T_T'], ['@_@', '%(', ':<', ":'("], ['D:', '):', 'X(', '@_@'],
-        ['D8', 'D:', 'X(', '):(']
+    { name: 'Emoviolence', phrases: [
+        'emoviolence', 'nobody cares', 'больно и пусто', "don't call me",
+        'я никому не нужен', 'hurts to breathe', 'тише', 'конец',
+        'everything ends', 'слёзы сохнут', 'lie to me again', 'оставь'
+    ], slots: [
+        [' ', '  ', ' ', '  '], ['.', '·x', '._', "''"], ['low', 'sad', '._.', 'x_'],
+        ['cry', 'x_x', 'sad', '._.'], ['alone', 'hurt', ';_;', ':('],
+        ['HURT', 'alone', 'cry', 'xX'], ['ALONE', 'HURT', 'CRIED', 'scars'],
+        ['nobody', 'no one', 'hurts', ' scars'], ['emoviolence', 'alone again', 'nobody', 'hurt me'],
+        ['EMOVIOLENCE', 'ALONE@∞', 'nothing', 'left']
     ] },
-    { name: 'Smiles', slots: [
+    { name: 'Smiles', phrases: [], slots: [
         [' ', '  ', ' ', '  '], ['.', ',', '·', '.'], [':|', ':]', ':I', '.o'],
         [':o', ':P', ':]', ':p'], [':D', ':O', 'xD', ':P'], ['xD', 'XD', ':D', 'xD'],
         ['XD', 'xD', '8)', 'xD'], [':D', '8)', 'B)', 'xD'], ['8)', 'B)', ':D', '8D'],
         ['8D', 'B)', '8)', 'XD']
     ] },
-    { name: 'Blocks', slots: [
+    { name: 'Blocks', phrases: [], slots: [
         [' ', ' ', ' ', ' '], ['░', '.', '░', '·'], ['▒', '░', ':', '▒'],
         ['▒▒', '░▒', '▒', '░'], ['▓', '▒', '▓', '▒'], ['▓▒', '▓', '▒▓', '▓'],
         ['█', '▓', '█', '▓'], ['█▓', '▓█', '█', '▓'], ['██', '█▓', '██', '█'],
         ['██', '██', '▓█', '██']
     ] },
-    { name: 'Matrix', slots: [
+    { name: 'Matrix', phrases: [], slots: [
         [' ', ' ', ' ', ' '], ['·0', '.', '·1', '0'], [':0', ';1', '.01', '10'],
         ['01', '10', '0|', '1|'], ['0', '1', '|0', '|1'], ['01', '10', '11', '00'],
         ['1丨', '0丨', '|1', '01'], ['10', '01', '1', '0'], ['01', '10', '11', '01'],
         ['@1', '1@', '01', '10']
     ] },
-    { name: 'Русский', slots: [
+    { name: 'Русский', phrases: [
+        'тишина', 'мысль потеряна', 'где я', 'а что если',
+        'всё нормально', 'не помню вчера', 'ветер поёт', 'снова день',
+        'между строк', 'пусто внутри', 'кто здесь', 'до свидания'
+    ], slots: [
         [' ', ' ', '  ', ' '], ['·о', '.', '·е', ',о'], [':о', ';е', '.ж', ',ш'],
         ['же', 'ош', 'ие', 'но'], ['О', 'Е', 'Н', 'Ж'], ['ЖЕ', 'НУ', 'ОМ', 'ЕТ'],
         ['ЩН', 'ЖШ', 'ВМ', 'АН'], ['ЭТО', 'НОМ', 'ВЕЩ', 'ОНА'], ['ЖИТ', 'ЭНТ', 'РОМ', 'МЫС'],
         ['@О', 'ЖЩ', 'ЭМ', 'НО']
     ] },
-    { name: 'English', slots: [
+    { name: 'English', phrases: [
+        'signal lost', 'who is there', 'waking up', 'no signal',
+        'static hum', 'hello?', 'output empty', 'again again',
+        'the void stares', 'cold boot', 'nobody home', 'last frame'
+    ], slots: [
         [' ', ' ', '  ', ' '], ['·t', '.', '·i', ',l'], [':t', ';i', '.ls', ',th'],
         ['ti', 'ls', 'on', 'an'], ['T', 'I', 'L', 'S'], ['TI', 'ON', 'TH', 'AN'],
         ['THE', 'AND', 'IT', 'AS'], ['TER', 'ION', 'ENT', 'ATH'], ['ETE', 'THO', 'RNI', 'STA'],
         ['@N', 'ET', 'TH', 'AL']
     ] }
 ];
+
+// Caption atlas: each phrase is one row of 32 character cells, per-character
+// drawn so the shader can sample exactly one cell. Horizontal repeat wraps
+// the phrase across wide screens; empty sets get a 1-row blank atlas and
+// chance 0, so symbol sets never trigger the caption branch.
+export function buildPhraseAtlas(setIdx = 0, cellsW = ASCII_PHRASE_CELLS, cellW = 20, cellH = 20) {
+    const set = ASCII_SETS[((setIdx % ASCII_SETS.length) + ASCII_SETS.length) % ASCII_SETS.length];
+    const phrases = set.phrases || [];
+    const rows = Math.max(1, phrases.length);
+    const c = document.createElement('canvas');
+    c.width = cellsW * cellW;
+    c.height = rows * cellH;
+    const g = c.getContext('2d');
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, c.width, c.height);
+    if (phrases.length) {
+        g.fillStyle = '#fff';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.font = 'bold ' + Math.floor(cellH * 0.72) + 'px monospace';
+        for (let r = 0; r < phrases.length; r++) {
+            const text = phrases[r].slice(0, cellsW);
+            const off = Math.floor((cellsW - text.length) / 2);
+            for (let x = 0; x < text.length; x++) {
+                g.fillText(text[x], (off + x) * cellW + cellW / 2, r * cellH + cellH / 2 + 1);
+            }
+        }
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.NearestFilter;
+    tex.generateMipmaps = false;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    return { tex: tex, rows: rows, chance: phrases.length ? 0.22 : 0 };
+}
 
 export function buildAsciiAtlas(setIdx = 0, cellW = 20, cellH = 20) {
     const set = ASCII_SETS[((setIdx % ASCII_SETS.length) + ASCII_SETS.length) % ASCII_SETS.length];
@@ -225,10 +295,13 @@ export function buildAsciiAtlas(setIdx = 0, cellW = 20, cellH = 20) {
 export const ASCII_FRAGMENT = `
 uniform sampler2D tDiffuse;
 uniform sampler2D uAtlas;
+uniform sampler2D uPhrase;
 uniform vec2 uResolution;
 uniform vec2 uCell;
 uniform float uTime;
 uniform float uFlipRate;
+uniform float uPhraseChance;
+uniform float uPhraseRows;
 varying vec2 vUv;
 
 float lum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
@@ -245,11 +318,23 @@ void main() {
     // so glyphs flicker at uFlipRate Hz and word fragments slip through
     float bucket = floor(uTime * uFlipRate);
     float rnd = fract(sin(dot(idx, vec2(127.1, 311.7)) + bucket * 91.7) * 43758.5453);
-    float row = floor(rnd * ${ASCII_VARIANTS}.0);
     vec2 local = fract(vUv * cells);
-    vec2 auv = vec2((gi + local.x) / n, (row + local.y) / ${ASCII_VARIANTS}.0);
-    float glyph = texture2D(uAtlas, auv).r;
-    gl_FragColor = vec4(scene * glyph, 1.0);
+    // occasionally a whole ROW becomes a caption line from the phrase atlas
+    float rowRnd = fract(sin(dot(vec2(idx.y * 0.618 + 7.31, bucket * 0.717), vec2(127.1, 311.7))) * 43758.5453);
+    float glyph;
+    float glow = 0.0;
+    if (rowRnd < uPhraseChance) {
+        float phraseRow = floor(fract(sin(dot(vec2(idx.y * 0.373, bucket * 0.113), vec2(12.9898, 78.233))) * 43758.5453) * uPhraseRows);
+        float px = mod(idx.x, ${ASCII_PHRASE_CELLS}.0);
+        vec2 puv = vec2((px + local.x) / ${ASCII_PHRASE_CELLS}.0, (phraseRow + local.y) / uPhraseRows);
+        glyph = texture2D(uPhrase, puv).r;
+        glow = 0.22;
+    } else {
+        float row = floor(rnd * ${ASCII_VARIANTS}.0);
+        vec2 auv = vec2((gi + local.x) / n, (row + local.y) / ${ASCII_VARIANTS}.0);
+        glyph = texture2D(uAtlas, auv).r;
+    }
+    gl_FragColor = vec4(scene * glyph + glyph * glow, 1.0);
 }
 `;
 
@@ -261,7 +346,10 @@ export function createAsciiPass(atlas, cellW = 18, cellH = 22) {
             uResolution: { value: new THREE.Vector2(1, 1) },
             uCell: { value: new THREE.Vector2(cellW, cellH) },
             uTime: { value: 0 },
-            uFlipRate: { value: 2 }
+            uFlipRate: { value: 2 },
+            uPhrase: { value: null },
+            uPhraseRows: { value: 1 },
+            uPhraseChance: { value: 0 }
         },
         vertexShader: `
         varying vec2 vUv;

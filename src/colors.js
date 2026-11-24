@@ -72,6 +72,12 @@ export function writeParticleColor(i, t, out, o) {
             s = 70 + (i / t) * 30;
             l = 60 + (i / t) * 30;
             break;
+        case 'steel':
+            // blue-gray: hue pinned across the steel band, saturation kept low
+            h = (hueOffset + hueOffsetMod + 212 + (i / t) * 22) % 360;
+            s = 16 + (i / t) * 18;
+            l = 42 + (i / t) * 38;
+            break;
         case 'cyan':
             h = (hueOffset + hueOffsetMod + 180) % 360;
             s = 100;

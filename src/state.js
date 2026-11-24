@@ -37,7 +37,7 @@ export const S = {
     time: 0,
     simSpeed: 0.5,
 
-    currentShape: 'sphere',
+    currentShape: 'cube',
     formScale: 150,
     formRotationSpeed: 0.3,
     formChaos: 0,
@@ -45,7 +45,7 @@ export const S = {
     // Photo mode: particles spell an image instead of a shape (opt-in)
     photoMode: false,
 
-    colorMode: 'ice',
+    colorMode: 'steel',
     hueOffset: 0,
     colorSaturation: 0.8,
     colorAnimation: 'static',
@@ -98,7 +98,7 @@ export const DEFAULT_CONFIG = {
     formScale: 150,
     formRotationSpeed: 0.3,
     formChaos: 0,
-    colorMode: 'ice',
+    colorMode: 'steel',
     hueOffset: 0,
     colorAnimation: 'static',
     bloomEnabled: true,

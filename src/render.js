@@ -29,7 +29,7 @@ import {
 } from './colors.js';
 import {
     createParticleMaterial, updateParticleMaterial,
-    createRGBShiftPass, createStarfield, createAsciiPass, buildAsciiAtlas
+    createRGBShiftPass, createStarfield, createAsciiPass, buildAsciiAtlas, ASCII_SETS
 } from './shaders.js';
 import {
     S,
@@ -68,6 +68,7 @@ let drawingPad = null;
 let starfield = null;
 let rgbShiftPass = null;
 let asciiPass = null;
+let asciiSetIdx = 0;
 
 // Camera preset target (smooth glide)
 let camTarget = null;
@@ -428,9 +429,11 @@ function setupPostProcessing() {
     composer.addPass(rgbShiftPass);
 
     // ASCII pass LAST — it renders glyphs over the fully processed frame
-    asciiPass = createAsciiPass(buildAsciiAtlas());
+    asciiPass = createAsciiPass(buildAsciiAtlas(S.asciiSet));
+    asciiSetIdx = ((S.asciiSet || 0) % ASCII_SETS.length + ASCII_SETS.length) % ASCII_SETS.length;
     asciiPass.enabled = S.asciiEnabled;
     setAsciiScale(S.asciiScale || 1);
+    setAsciiRate(S.asciiRate || 2);
     composer.addPass(asciiPass);
     renderer.getDrawingBufferSize(asciiPass.uniforms.uResolution.value);
 
@@ -666,6 +669,35 @@ function setAsciiScale(v) {
     if (asciiPass) asciiPass.uniforms.uCell.value.set(18 * v, 22 * v);
 }
 
+// Switch the character set: rebuild the 10x4 atlas canvas (cheap, one-off)
+// and swap the texture. Normalizes the index so presets from URL/cloud can
+// carry any integer.
+function setAsciiSet(i) {
+    const idx = ((Math.round(i) % ASCII_SETS.length) + ASCII_SETS.length) % ASCII_SETS.length;
+    S.asciiSet = idx;
+    asciiSetIdx = idx;
+    if (asciiPass) {
+        const old = asciiPass.uniforms.uAtlas.value;
+        asciiPass.uniforms.uAtlas.value = buildAsciiAtlas(idx);
+        if (old && old.dispose) old.dispose();
+    }
+}
+
+// Glyph flicker frequency in Hz (0 = frozen frame of characters).
+function setAsciiRate(v) {
+    S.asciiRate = v;
+    if (asciiPass) asciiPass.uniforms.uFlipRate.value = v;
+}
+
+// Re-sync ASCII uniforms from S after a config load (presets, URL, cloud):
+// rebuilds the atlas only when the set actually changed.
+function syncAsciiFromState() {
+    if (!asciiPass) return;
+    setAsciiScale(S.asciiScale);
+    if (asciiPass.uniforms.uFlipRate.value !== S.asciiRate) setAsciiRate(S.asciiRate);
+    if (asciiSetIdx !== S.asciiSet) setAsciiSet(S.asciiSet);
+}
+
 function setTwinkle(b) {
     S.twinkleEnabled = b;
     updateParticleMaterial(material, { twinkle: S.twinkleEnabled });
@@ -766,6 +798,7 @@ function applyConfigRender(countChanged) {
     if (rgbShiftPass) rgbShiftPass.enabled = S.aberrationEnabled;
     if (asciiPass) asciiPass.enabled = S.asciiEnabled;
     if (starfield) starfield.visible = S.starfieldEnabled;
+    syncAsciiFromState();
     if (!S.pointerFxEnabled) setMouseState(-9999, -9999, 0);
     if (controls) {
         controls.autoRotate = S.autoRotate;
@@ -793,6 +826,7 @@ function animate() {
     const dt = Math.min((now - lastFrameTime) / 1000, 0.05);
     dtLast = dt;
     lastFrameTime = now;
+    if (asciiPass) asciiPass.uniforms.uTime.value = now / 1000;
 
     // FPS + adaptive bloom
     frameCount++;
@@ -925,6 +959,8 @@ export {
     getDrawingPad,
     setParticleSize,
     setAsciiScale,
+    setAsciiSet,
+    setAsciiRate,
     setTwinkle,
     setBloomEnabled,
     setBloomIntensity,

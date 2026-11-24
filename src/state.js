@@ -82,6 +82,8 @@ export const S = {
     aberrationEnabled: false,
     asciiEnabled: false,
     asciiScale: 1.0,
+    asciiSet: 0,
+    asciiRate: 2,
     pointerMagnet: false,
     pointerFxEnabled: false,
 
@@ -113,6 +115,8 @@ export const DEFAULT_CONFIG = {
     aberrationEnabled: false,
     asciiEnabled: false,
     asciiScale: 1.0,
+    asciiSet: 0,
+    asciiRate: 2,
     pointerFxEnabled: false
 };
 
@@ -138,6 +142,8 @@ export function collectConfig() {
         aberrationEnabled: S.aberrationEnabled,
         asciiEnabled: S.asciiEnabled,
         asciiScale: S.asciiScale,
+        asciiSet: S.asciiSet,
+        asciiRate: S.asciiRate,
         pointerFxEnabled: S.pointerFxEnabled
     };
 }

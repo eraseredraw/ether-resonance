@@ -94,6 +94,9 @@ function updateUIFromState() {
     document.getElementById('ascii-toggle').checked = S.asciiEnabled;
     document.getElementById('ascii-scale').value = S.asciiScale;
     document.getElementById('ascii-scale-value').textContent = S.asciiScale.toFixed(1);
+    document.getElementById('ascii-set').value = String(S.asciiSet);
+    document.getElementById('ascii-rate').value = S.asciiRate;
+    document.getElementById('ascii-rate-value').textContent = S.asciiRate.toFixed(1);
     document.getElementById('pointerfx-toggle').checked = S.pointerFxEnabled;
     updateHudFormName();
 }
@@ -417,7 +420,9 @@ function writeConfigToState(cfg) {
     if (typeof cfg.starfieldEnabled === 'boolean') S.starfieldEnabled = cfg.starfieldEnabled;
     if (typeof cfg.aberrationEnabled === 'boolean') S.aberrationEnabled = cfg.aberrationEnabled;
     if (typeof cfg.asciiEnabled === 'boolean') S.asciiEnabled = cfg.asciiEnabled;
-    if (typeof cfg.asciiScale === 'number') S.asciiScale = cfg.asciiScale;
+    if (typeof cfg.asciiScale === 'number' && cfg.asciiScale > 0) S.asciiScale = cfg.asciiScale;
+    if (typeof cfg.asciiSet === 'number') S.asciiSet = Math.max(0, Math.round(cfg.asciiSet));
+    if (typeof cfg.asciiRate === 'number') S.asciiRate = Math.min(20, Math.max(0, cfg.asciiRate));
     if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
     return countChanged;
 }
@@ -791,6 +796,13 @@ function setupEventListeners() {
     document.getElementById('ascii-scale').addEventListener('input', e => {
         render.setAsciiScale(parseFloat(e.target.value));
         document.getElementById('ascii-scale-value').textContent = e.target.value;
+    });
+    document.getElementById('ascii-set').addEventListener('change', e => {
+        render.setAsciiSet(parseInt(e.target.value, 10) || 0);
+    });
+    document.getElementById('ascii-rate').addEventListener('input', e => {
+        render.setAsciiRate(parseFloat(e.target.value));
+        document.getElementById('ascii-rate-value').textContent = e.target.value;
     });
 
     // --- Pointer FX (magnet/repulse/wave), off by default ---

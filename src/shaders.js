@@ -116,25 +116,102 @@ export function createRGBShiftPass(amount = 0.003) {
 // ASCII POST-PROCESSING pass
 // ============================================
 // Terminal-style render: the frame is divided into character cells, each
-// cell's luminance picks a glyph from a runtime-built atlas (dark→bright,
-// space→@), the glyph is tinted with the cell's colour. Disabled by default
-// (pass.enabled); zero cost while off.
-export const ASCII_GLYPHS = ' .:-=+*#%@';
+// cell's luminance picks a luminance slot, and within the slot one VARIANT
+// is picked per cell by hashing (cell, time bucket) — so characters FLICKER
+// at uFlipRate Hz and short word fragments (RU + EN) slip through among
+// glyphs. Ten named sets; the atlas is a 10x4 grid rebuilt on set switch.
+// Disabled by default (pass.enabled); zero cost while off.
+export const ASCII_SLOT_COUNT = 10;
+export const ASCII_VARIANTS = 4;
 
-export function buildAsciiAtlas(cellW = 16, cellH = 16) {
-    const n = ASCII_GLYPHS.length;
+// Each set: 10 slots dark→bright, each slot up to 4 variants (padded).
+// Multi-char tokens are squeezed into the cell to fit.
+export const ASCII_SETS = [
+    { name: 'Classic', slots: [
+        [' ', ' ', '·', ' '], ['.', "'", '·', '.'], [':', '-', ':', '.'],
+        ['=', '+', '-', ':'], ['+', '*', '=', '+'], ['*', '#', '*', '='],
+        ['#', '%', '#', '*'], ['%', '@', '&', '#'], ['@', '#', '@', '%'],
+        ['@', '@', '▓', '@']
+    ] },
+    { name: 'Eternal', slots: [
+        [' ', ' ', '·', ' '], ['·e', '.', '·t', ','], [':e', ';t', ':n', '.l'],
+        ['et', 'en', 'te', 'ne'], ['E', 'T', 'N', 'L'], ['ET', 'NT', 'RN', 'AL'],
+        ['EΛ', 'TΞ', 'Nθ', 'Lλ'], ['ΞE', 'λT', 'θN', '∞L'], ['E∞', 'λΞ', 'θθ', 'N∞'],
+        ['@∞', 'Λ@', '∞∞', 'ΞN']
+    ] },
+    { name: 'Ethereal', slots: [
+        [' ', ' ', '  ', ' '], ['·', '˙', '.', '·'], [':*', '˙+', '·*', '.˚'],
+        ['˚*', '*˚', '+·', '˚+'], ['*✧', '✧*', '˚✦', '✦˚'], ['✦✧', '✧✦', '✴˚', '˚✴'],
+        ['✴✦', '✧✴', '❉✧', '✦❉'], ['✜✦', '❉✴', '✧✺', '✴✜'], ['✺❉', '✜✺', '✦✪', '✺✧'],
+        ['✪✺', '✺✺', '❉❉', '✜✪']
+    ] },
+    { name: 'Evil', slots: [
+        [' ', ' ', '  ', ' '], ['.', "'", '`', '·'], [':x', ';v', '.x', "'v"],
+        ['xv', 'vx', '/\\', '\\/'], ['xX', 'Xx', 'vV', '▼▲'], ['XV', 'VX', '/‖', '\\‖'],
+        ['▲▼', '▮▯', 'x▮', 'X▲'], ['▓▒', '▒▓', '██', '▓█'], ['█▓', '██', '▓█', '██'],
+        ['☠█', '█☠', '██', '▓☠']
+    ] },
+    { name: 'Emo', slots: [
+        [' ', '  ', ' ', '  '], ['._', '._', '·_', '._'], [':(', '._.', ';_;', ':c'],
+        [':/', '(-_', ':(', '._.'], [';_;', 'x_x', ':c', '(-_-)'], ['T_T', ':(', 'x_x', ';n;'],
+        [":@" , ":'(", 'xX', 'T_T'], ['@_@', '%(', ':<', ":'("], ['D:', '):', 'X(', '@_@'],
+        ['D8', 'D:', 'X(', '):(']
+    ] },
+    { name: 'Smiles', slots: [
+        [' ', '  ', ' ', '  '], ['.', ',', '·', '.'], [':|', ':]', ':I', '.o'],
+        [':o', ':P', ':]', ':p'], [':D', ':O', 'xD', ':P'], ['xD', 'XD', ':D', 'xD'],
+        ['XD', 'xD', '8)', 'xD'], [':D', '8)', 'B)', 'xD'], ['8)', 'B)', ':D', '8D'],
+        ['8D', 'B)', '8)', 'XD']
+    ] },
+    { name: 'Blocks', slots: [
+        [' ', ' ', ' ', ' '], ['░', '.', '░', '·'], ['▒', '░', ':', '▒'],
+        ['▒▒', '░▒', '▒', '░'], ['▓', '▒', '▓', '▒'], ['▓▒', '▓', '▒▓', '▓'],
+        ['█', '▓', '█', '▓'], ['█▓', '▓█', '█', '▓'], ['██', '█▓', '██', '█'],
+        ['██', '██', '▓█', '██']
+    ] },
+    { name: 'Matrix', slots: [
+        [' ', ' ', ' ', ' '], ['·0', '.', '·1', '0'], [':0', ';1', '.01', '10'],
+        ['01', '10', '0|', '1|'], ['0', '1', '|0', '|1'], ['01', '10', '11', '00'],
+        ['1丨', '0丨', '|1', '01'], ['10', '01', '1', '0'], ['01', '10', '11', '01'],
+        ['@1', '1@', '01', '10']
+    ] },
+    { name: 'Русский', slots: [
+        [' ', ' ', '  ', ' '], ['·о', '.', '·е', ',о'], [':о', ';е', '.ж', ',ш'],
+        ['же', 'ош', 'ие', 'но'], ['О', 'Е', 'Н', 'Ж'], ['ЖЕ', 'НУ', 'ОМ', 'ЕТ'],
+        ['ЩН', 'ЖШ', 'ВМ', 'АН'], ['ЭТО', 'НОМ', 'ВЕЩ', 'ОНА'], ['ЖИТ', 'ЭНТ', 'РОМ', 'МЫС'],
+        ['@О', 'ЖЩ', 'ЭМ', 'НО']
+    ] },
+    { name: 'English', slots: [
+        [' ', ' ', '  ', ' '], ['·t', '.', '·i', ',l'], [':t', ';i', '.ls', ',th'],
+        ['ti', 'ls', 'on', 'an'], ['T', 'I', 'L', 'S'], ['TI', 'ON', 'TH', 'AN'],
+        ['THE', 'AND', 'IT', 'AS'], ['TER', 'ION', 'ENT', 'ATH'], ['ETE', 'THO', 'RNI', 'STA'],
+        ['@N', 'ET', 'TH', 'AL']
+    ] }
+];
+
+export function buildAsciiAtlas(setIdx = 0, cellW = 20, cellH = 20) {
+    const set = ASCII_SETS[((setIdx % ASCII_SETS.length) + ASCII_SETS.length) % ASCII_SETS.length];
     const c = document.createElement('canvas');
-    c.width = cellW * n;
-    c.height = cellH;
+    c.width = cellW * ASCII_SLOT_COUNT;
+    c.height = cellH * ASCII_VARIANTS;
     const g = c.getContext('2d');
     g.fillStyle = '#000';
     g.fillRect(0, 0, c.width, c.height);
     g.fillStyle = '#fff';
-    g.font = 'bold ' + Math.floor(cellH * 0.85) + 'px monospace';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    for (let i = 0; i < n; i++) {
-        g.fillText(ASCII_GLYPHS[i], i * cellW + cellW / 2, cellH / 2 + 1);
+    const baseFont = Math.floor(cellH * 0.8);
+    for (let s = 0; s < ASCII_SLOT_COUNT; s++) {
+        const variants = set.slots[s];
+        for (let v = 0; v < ASCII_VARIANTS; v++) {
+            const token = variants[v] !== undefined ? variants[v] : variants[variants.length - 1] || ' ';
+            // squeeze longer tokens into the cell: shrink font by token length
+            const fs = token.length > 1
+                ? Math.max(6, Math.floor(baseFont / (token.length * 0.62)))
+                : baseFont;
+            g.font = 'bold ' + fs + 'px monospace';
+            g.fillText(token, s * cellW + cellW / 2, v * cellH + cellH / 2 + 1);
+        }
     }
     const tex = new THREE.CanvasTexture(c);
     tex.minFilter = THREE.LinearFilter;
@@ -150,6 +227,8 @@ uniform sampler2D tDiffuse;
 uniform sampler2D uAtlas;
 uniform vec2 uResolution;
 uniform vec2 uCell;
+uniform float uTime;
+uniform float uFlipRate;
 varying vec2 vUv;
 
 float lum(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
@@ -160,10 +239,15 @@ void main() {
     vec2 center = (idx + 0.5) / cells;
     vec3 scene = texture2D(tDiffuse, center).rgb;
     float l = lum(scene);
-    float n = ${ASCII_GLYPHS.length}.0;
+    float n = ${ASCII_SLOT_COUNT}.0;
     float gi = clamp(floor(l * n), 0.0, n - 1.0);
+    // per-cell variant: hash of (cell, time bucket) -> one of 4 variants,
+    // so glyphs flicker at uFlipRate Hz and word fragments slip through
+    float bucket = floor(uTime * uFlipRate);
+    float rnd = fract(sin(dot(idx, vec2(127.1, 311.7)) + bucket * 91.7) * 43758.5453);
+    float row = floor(rnd * ${ASCII_VARIANTS}.0);
     vec2 local = fract(vUv * cells);
-    vec2 auv = vec2((gi + local.x) / n, local.y);
+    vec2 auv = vec2((gi + local.x) / n, (row + local.y) / ${ASCII_VARIANTS}.0);
     float glyph = texture2D(uAtlas, auv).r;
     gl_FragColor = vec4(scene * glyph, 1.0);
 }
@@ -175,7 +259,9 @@ export function createAsciiPass(atlas, cellW = 18, cellH = 22) {
             tDiffuse: { value: null },
             uAtlas: { value: atlas },
             uResolution: { value: new THREE.Vector2(1, 1) },
-            uCell: { value: new THREE.Vector2(cellW, cellH) }
+            uCell: { value: new THREE.Vector2(cellW, cellH) },
+            uTime: { value: 0 },
+            uFlipRate: { value: 2 }
         },
         vertexShader: `
         varying vec2 vUv;

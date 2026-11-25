@@ -29,7 +29,7 @@ import {
 } from './colors.js';
 import {
     createParticleMaterial, updateParticleMaterial,
-    createRGBShiftPass, createStarfield, createAsciiPass, buildAsciiAtlas, buildPhraseAtlas, ASCII_SETS
+    createRGBShiftPass, createStarfield, createAsciiPass, buildAsciiAtlas, buildPhraseAtlas, ASCII_SETS, mergeWordSets
 } from './shaders.js';
 import {
     S,
@@ -982,3 +982,30 @@ export {
     loadModelOffsetSource,
     applyConfigRender
 };
+
+// ============================================
+// PRIVATE WORD SETS (optional, not committed)
+// ============================================
+// src/ascii-words.js is git-ignored and never deployed. On the public site
+// this import 404s and the catch keeps symbol-only sets; on a local/dev
+// build it exists and the word mood sets are appended to ASCII_SETS.
+let wordSetsLoaded = false;
+
+export async function loadWordSets() {
+    if (wordSetsLoaded) return ASCII_SETS.length;
+    try {
+        const mod = await import('./ascii-words.js');
+        if (mod && mod.ASCII_WORD_SETS) {
+            const n = mergeWordSets(mod.ASCII_WORD_SETS);
+            wordSetsLoaded = true;
+            return n;
+        }
+    } catch {
+        // public deployment: no private module — nothing to do
+    }
+    return ASCII_SETS.length;
+}
+
+export function getAsciiSetNames() {
+    return ASCII_SETS.map(s => s.name);
+}

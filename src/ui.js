@@ -94,7 +94,7 @@ function updateUIFromState() {
     document.getElementById('ascii-toggle').checked = S.asciiEnabled;
     document.getElementById('ascii-scale').value = S.asciiScale;
     document.getElementById('ascii-scale-value').textContent = S.asciiScale.toFixed(1);
-    document.getElementById('ascii-set').value = String(S.asciiSet);
+    document.getElementById('ascii-set').value = String(Math.min(S.asciiSet, render.getAsciiSetNames().length - 1));
     document.getElementById('ascii-rate').value = S.asciiRate;
     document.getElementById('ascii-rate-value').textContent = S.asciiRate.toFixed(1);
     document.getElementById('pointerfx-toggle').checked = S.pointerFxEnabled;
@@ -660,6 +660,25 @@ async function handleUpload(type, file) {
     }
 }
 
+
+// ASCII set options are built from render.getAsciiSetNames(): publicly the
+// list is symbol-only, on private builds loadWordSets() appends word sets
+// and this rebuilds the numbering (options stay "1, 2, 3..." per design).
+function rebuildAsciiSetOptions() {
+    const sel = document.getElementById('ascii-set');
+    if (!sel) return;
+    const names = render.getAsciiSetNames();
+    sel.innerHTML = '';
+    names.forEach((n, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = String(i + 1);
+        sel.appendChild(opt);
+    });
+    if (S.asciiSet >= names.length) S.asciiSet = 0;
+    sel.value = String(S.asciiSet);
+}
+
 function setupEventListeners() {
     const H = render.getHandles();
 
@@ -797,6 +816,7 @@ function setupEventListeners() {
         render.setAsciiScale(parseFloat(e.target.value));
         document.getElementById('ascii-scale-value').textContent = e.target.value;
     });
+    rebuildAsciiSetOptions();
     document.getElementById('ascii-set').addEventListener('change', e => {
         render.setAsciiSet(parseInt(e.target.value, 10) || 0);
     });
@@ -1054,4 +1074,4 @@ export { showNotification, updateLoading, setAudioStatus, updateHudFormName, upd
     applyConfig, savePreset, loadPreset, publishPreset, loadCloudShape, exportCode, copyCode,
     exportPly, exportObj, exportGlb, uploadFile, handleUpload, loadImageFile, buildPhotoSourceFromImage ,
     setupEventListeners, setupDragAndDrop, randomize, setForm, setAspectRatio,
-    writeConfigToState, reset, toggleCameraMode, flipCameraMode };
+    writeConfigToState, reset, toggleCameraMode, flipCameraMode, rebuildAsciiSetOptions };

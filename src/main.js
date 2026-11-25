@@ -33,6 +33,7 @@ function init() {
         ui.updateLoading(10, 'Creating scene...');
         render.initScene();
 
+
         ui.updateLoading(30, 'Creating particles...');
         render.rebuildParticles();
 
@@ -40,6 +41,9 @@ function init() {
         render.createStarfieldInScene();
 
         ui.updateLoading(70, 'Setting up post-processing...');
+        render.loadWordSets().then(() => {
+            ui.rebuildAsciiSetOptions(); // renumber if private sets arrived
+        }); // private sets (async, may arrive late)
         render.setupPostProcessing();
 
         ui.updateLoading(90, 'Finalizing...');

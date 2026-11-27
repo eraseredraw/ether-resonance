@@ -12,6 +12,11 @@
 // pixels even on a paused field, so idempotence is judged against measurement
 // rather than against zero.
 //
+// A placement pass then checks the button is discoverable: painted, in the
+// upper-right quadrant, topmost at its own centre (nothing overlapping), both
+// with the HUD panel closed and open — and that opening the HUD steps it down
+// instead of leaving it underneath. It runs last so it cannot perturb pixels.
+//
 // Runs headless Chrome against a throwaway static server on the repo tree,
 // same toolchain as scripts/golden.mjs. Frames land in the runner temp dir
 // (LIVE_OUT_DIR overrides) so CI can upload them on failure.
@@ -150,6 +155,45 @@ try {
   const noise = diffPct(C, D);
   const retriggerDrift = diffPct(B, C);
 
+  // Discoverability, measured after every pixel comparison so it cannot
+  // perturb them. The button used to live inside the control panel — a bottom
+  // sheet on mobile — and the user could not find it twice. So assert it is
+  // painted, in the upper-right quadrant, and is the TOPMOST element at its own
+  // centre (nothing overlapping it), with the HUD closed and again with it open.
+  const place = () => page.evaluate(() => {
+    const b = document.getElementById('btn-retrigger');
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    const st = getComputedStyle(b);
+    return {
+      top: Math.round(r.top),
+      fromRight: Math.round(window.innerWidth - r.right),
+      w: Math.round(r.width),
+      h: Math.round(r.height),
+      painted: st.display !== 'none' && st.visibility !== 'hidden' && r.width > 0 && r.height > 0,
+      topmost: hit === b || b.contains(hit),
+      vh: window.innerHeight,
+      vw: window.innerWidth,
+    };
+  });
+
+  const closed = await place();
+  await click('hud-toggle');                       // open the HUD panel
+  await new Promise(r => setTimeout(r, 700));      // let its transition settle
+  const open = await place();
+  await click('hud-toggle');                       // restore for the next run
+  await new Promise(r => setTimeout(r, 400));
+
+  const fmt = p => `top=${p.top} fromRight=${p.fromRight} ${p.w}x${p.h} ` +
+    `painted=${p.painted} topmost=${p.topmost}`;
+  console.log('placement (HUD closed):', fmt(closed));
+  console.log('placement (HUD open):  ', fmt(open));
+
+  const cornerOk = p => p.painted && p.topmost
+    && p.top < p.vh * 0.4 && p.fromRight < p.vw * 0.35;
+  // Opening the HUD must push the button down, not leave it underneath
+  const stepsDown = open.top > closed.top;
+
   console.log('knob-while-paused changed canvas: ', knobApplied.toFixed(2) + '%');
   console.log('noise floor (idle C→D):           ', noise.toFixed(2) + '%');
   console.log('retrigger drift (B→C, want ≈ noise):', retriggerDrift.toFixed(2) + '%');
@@ -161,7 +205,8 @@ try {
   // camera and twinkle move fractions.
   const driftBudget = Math.max(1.0, noise * 4);
   const ok = knobApplied > 0.5 && retriggerDrift < driftBudget
-    && errors.length === 0 && /RETRIGGERED/i.test(notif);
+    && errors.length === 0 && /RETRIGGERED/i.test(notif)
+    && cornerOk(closed) && cornerOk(open) && stepsDown;
   console.log(`drift budget: ${driftBudget.toFixed(2)}%  →  ${ok ? 'RESULT: PASS' : 'RESULT: FAIL'}`);
   process.exitCode = ok ? 0 : 1;
 } finally {

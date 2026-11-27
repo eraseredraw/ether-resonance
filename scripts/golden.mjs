@@ -132,6 +132,9 @@ async function render() {
     // The canvas sits behind the HUD, and element.screenshot() captures the
     // painted rectangle — overlays included. An FPS counter in the baseline is
     // a guaranteed flake, so strip everything that is not the canvas.
+    // Invariant this relies on: any floating chrome (toggles, the Retrigger
+    // button) must be a DIRECT child of <body>, or it survives this rule and
+    // leaks web-font rendering into the comparison.
     await page.evaluate(() => {
       const s = document.createElement('style');
       s.textContent = 'body > *:not(canvas){display:none !important}';

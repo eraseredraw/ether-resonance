@@ -42,6 +42,11 @@
     <!-- HUD Toggle Button -->
     <button id="hud-toggle" title="Toggle HUD (Tab)">☰</button>
 
+    <!-- Escape hatch: force one full re-evaluation of the field. Fixed to the
+         viewport so it is reachable without opening the control panel, which
+         on mobile is a bottom sheet you would have to scroll. -->
+    <button id="btn-retrigger" title="Force a full re-evaluation of the field: applies every pending knob and colour right now, even while paused">⚡ Retrigger</button>
+
     <!-- HUD (скрыт по умолчанию) -->
     <div id="hud" class="hidden">
         <h1>🧬 ETHER RESONANCE <span class="author">Alexey S. | @crwnshnss</span></h1>
@@ -233,9 +238,6 @@
                     <option value="pulse">Pulse</option>
                     <option value="matrix">Matrix</option>
                 </select>
-            </div>
-            <div class="btn-row">
-                <button id="btn-retrigger" title="Force a full re-evaluation of the field: applies every pending knob and colour right now, even while paused">⚡ Retrigger</button>
             </div>
         </div>
 

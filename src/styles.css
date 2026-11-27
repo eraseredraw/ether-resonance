@@ -213,6 +213,59 @@ button {
 #drawing-pad-toggle:active { transform: translateX(-50%) translateY(1px); }
 
 /* ============================================
+   RETRIGGER — floating escape hatch
+   ============================================
+   Always reachable, never buried in the control panel (which is a bottom
+   sheet on mobile and needs scrolling to reach the colour section). It parks
+   in the top-right corner under the ☰ toggle; when the HUD panel is open it
+   steps below that panel, and the offset is measured from the panel's real
+   height rather than guessed — see syncRetriggerPos() in ui.js. Amber, because
+   every other chrome element here is deliberately grey: this one is a button
+   you reach for when the machine is not behaving. */
+#btn-retrigger {
+    position: fixed;
+    z-index: 102;
+    top: var(--retrigger-top, calc(var(--sp-3) + 54px));
+    right: var(--sp-3);
+    height: 42px;
+    min-width: 0;
+    flex: none;
+    padding: 0 var(--sp-4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    background: var(--surface);
+    border: 1px solid rgba(255, 179, 71, 0.42);
+    border-radius: var(--radius-sm);
+    color: #ffb347;
+    font-size: 10px;
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    box-shadow: var(--shadow-panel);
+    transition: top 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.18s ease,
+        color 0.18s ease, border-color 0.18s ease;
+}
+
+#btn-retrigger:hover {
+    background: rgba(255, 179, 71, 0.14);
+    border-color: #ffb347;
+    color: #ffd79a;
+}
+
+#btn-retrigger:active { transform: translateY(1px); }
+
+/* Mobile: the panel is a bottom sheet, so nothing competes with the corner;
+   shrink the label so it cannot collide with the HUD on a narrow screen. */
+@media (max-width: 480px) {
+    #btn-retrigger {
+        padding: 0 var(--sp-3);
+        font-size: 9px;
+        letter-spacing: 0.6px;
+    }
+}
+
+/* ============================================
    CONTROLS PANEL
    ============================================ */
 #controls {

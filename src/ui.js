@@ -149,6 +149,26 @@ function updateUIFromState() {
 
 function toggleHUD() {
     document.getElementById('hud').classList.toggle('hidden');
+    syncRetriggerPos();
+}
+
+// The floating Retrigger button sits in the top-right corner under the ☰
+// toggle. When the HUD panel is open it has to step below that panel instead
+// of covering its title, and the panel's height is not knowable ahead of time
+// (stats block, author line, calibration row all come and go), so the offset
+// is measured rather than guessed. Clamped at both ends: never above the ☰
+// toggle, never below the fold on a short viewport.
+function syncRetriggerPos() {
+    const btn = document.getElementById('btn-retrigger');
+    const hud = document.getElementById('hud');
+    if (!btn || !hud) return;
+    if (hud.classList.contains('hidden')) {
+        btn.style.removeProperty('--retrigger-top');
+        return;
+    }
+    const bottom = hud.getBoundingClientRect().bottom;
+    const top = Math.max(66, Math.min(bottom + 12, window.innerHeight - 54));
+    btn.style.setProperty('--retrigger-top', top + 'px');
 }
 
 function toggleControls() {
@@ -1042,6 +1062,12 @@ function setupEventListeners() {
             render.resetCamera();
         }
     });
+
+    // --- Floating Retrigger placement ---
+    // Font loading and viewport changes both move the HUD panel's bottom edge,
+    // so the offset is recalculated rather than set once at boot.
+    window.addEventListener('resize', syncRetriggerPos);
+    document.fonts?.ready?.then(syncRetriggerPos);
 }
 
 function setupDragAndDrop() {

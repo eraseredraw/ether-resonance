@@ -133,6 +133,10 @@ try {
 
   // Retrigger on an already-consistent field must be idempotent, not a crash
   await click('btn-retrigger');
+  // Read the acknowledgement before anything else: showNotification removes
+  // itself after 2200 ms, and two SwiftShader screenshots eat that budget.
+  const notif = await page.evaluate(() =>
+    [...document.querySelectorAll('.notification')].map(n => n.textContent).join('|'));
   await new Promise(r => setTimeout(r, 800));
   const C = await shot(page, 'rt-c');
 
@@ -141,9 +145,6 @@ try {
   // change nothing?" can only be judged against this, not against zero.
   await new Promise(r => setTimeout(r, 800));
   const D = await shot(page, 'rt-d');
-
-  const notif = await page.evaluate(() =>
-    [...document.querySelectorAll('.notification')].map(n => n.textContent).join('|'));
 
   const knobApplied = diffPct(A, B);
   const noise = diffPct(C, D);

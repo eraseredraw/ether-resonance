@@ -1,5 +1,16 @@
 // Live behaviour check: do form knobs apply while the field is paused,
-// and does the Retrigger button fire without breaking the frame?
+// and does the Retrigger button fire without disturbing a settled frame?
+//
+// Four canvas shots, all with the field paused and auto-rotate off:
+//   A baseline → B after turning form-pitch → C after clicking Retrigger
+//   → D after an idle wait of the same length
+// Assertions:
+//   diff(A,B) > 0.5%      a knob moved a PAUSED field (the reported bug)
+//   diff(B,C) < max(1%, 4×diff(C,D))   Retrigger is idempotent, not a reset
+//   no page errors, notification reads FIELD RETRIGGERED
+// diff(C,D) is the noise floor: camera lerp/damping and twinkle keep moving
+// pixels even on a paused field, so idempotence is judged against measurement
+// rather than against zero.
 //
 // Runs headless Chrome against a throwaway static server on the repo tree,
 // same toolchain as scripts/golden.mjs. Frames land in the runner temp dir
@@ -83,6 +94,11 @@ try {
   await page.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
   await page.evaluateOnNewDocument(seed);
   await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'domcontentloaded' });
+  // The adaptive bloom sampler steps intensity every 3 s of wall clock based
+  // on measured FPS; headless SwiftShader FPS varies frame to frame, so it
+  // would move pixels between shots for reasons that have nothing to do with
+  // the button. Neutralise it before the first 3 s tick.
+  await page.evaluate(() => { window.adjustBloomQuality = () => {}; });
   await new Promise(r => setTimeout(r, 4000));       // let the scene settle
 
   // Deterministic clicks that do not depend on the panel being unfolded:
@@ -120,20 +136,32 @@ try {
   await new Promise(r => setTimeout(r, 800));
   const C = await shot(page, 'rt-c');
 
+  // Noise floor: same wait, no intervention. Camera lerp/damping and shader
+  // twinkle keep moving a few pixels even while paused, so "did the button
+  // change nothing?" can only be judged against this, not against zero.
+  await new Promise(r => setTimeout(r, 800));
+  const D = await shot(page, 'rt-d');
+
   const notif = await page.evaluate(() =>
     [...document.querySelectorAll('.notification')].map(n => n.textContent).join('|'));
 
   const knobApplied = diffPct(A, B);
+  const noise = diffPct(C, D);
   const retriggerDrift = diffPct(B, C);
 
   console.log('knob-while-paused changed canvas: ', knobApplied.toFixed(2) + '%');
-  console.log('retrigger drift (want ~0):        ', retriggerDrift.toFixed(2) + '%');
+  console.log('noise floor (idle C→D):           ', noise.toFixed(2) + '%');
+  console.log('retrigger drift (B→C, want ≈ noise):', retriggerDrift.toFixed(2) + '%');
   console.log('notification:', notif || '<none>');
   console.log('page errors:', errors.length ? errors.join(' | ') : 'none');
 
-  const ok = knobApplied > 0.5 && retriggerDrift < 1.0 && errors.length === 0
-    && /RETRIGGERED/i.test(notif);
-  console.log(ok ? 'RESULT: PASS' : 'RESULT: FAIL');
+  // Idempotence is judged against the measured noise floor, not zero: a real
+  // reset (buffer rebuild, default count) moves double digits, settling
+  // camera and twinkle move fractions.
+  const driftBudget = Math.max(1.0, noise * 4);
+  const ok = knobApplied > 0.5 && retriggerDrift < driftBudget
+    && errors.length === 0 && /RETRIGGERED/i.test(notif);
+  console.log(`drift budget: ${driftBudget.toFixed(2)}%  →  ${ok ? 'RESULT: PASS' : 'RESULT: FAIL'}`);
   process.exitCode = ok ? 0 : 1;
 } finally {
   await browser.close();

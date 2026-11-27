@@ -189,10 +189,19 @@ try {
   console.log('placement (HUD closed):', fmt(closed));
   console.log('placement (HUD open):  ', fmt(open));
 
-  const cornerOk = p => p.painted && p.topmost
-    && p.top < p.vh * 0.4 && p.fromRight < p.vw * 0.35;
+  // Two different bars, because the two states genuinely differ. Closed HUD is
+  // the normal case: the button must sit in the hard top-right corner. Open
+  // HUD means the panel occupies that corner legitimately, so the requirement
+  // becomes the same right-hand column, still above the fold, and not
+  // underneath the panel — which stepsDown asserts independently.
+  const cornerOk = (p, maxTopFrac) => p.painted && p.topmost
+    && p.top < p.vh * maxTopFrac && p.fromRight < p.vw * 0.35
+    && p.top < p.vh - 54;
+  const closedOk = cornerOk(closed, 0.4);
+  const openOk = cornerOk(open, 0.75);
   // Opening the HUD must push the button down, not leave it underneath
   const stepsDown = open.top > closed.top;
+  console.log(`corner checks: closed=${closedOk} open=${openOk} stepsDown=${stepsDown}`);
 
   console.log('knob-while-paused changed canvas: ', knobApplied.toFixed(2) + '%');
   console.log('noise floor (idle C→D):           ', noise.toFixed(2) + '%');
@@ -206,7 +215,7 @@ try {
   const driftBudget = Math.max(1.0, noise * 4);
   const ok = knobApplied > 0.5 && retriggerDrift < driftBudget
     && errors.length === 0 && /RETRIGGERED/i.test(notif)
-    && cornerOk(closed) && cornerOk(open) && stepsDown;
+    && closedOk && openOk && stepsDown;
   console.log(`drift budget: ${driftBudget.toFixed(2)}%  →  ${ok ? 'RESULT: PASS' : 'RESULT: FAIL'}`);
   process.exitCode = ok ? 0 : 1;
 } finally {

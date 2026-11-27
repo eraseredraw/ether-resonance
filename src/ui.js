@@ -52,12 +52,30 @@ function updateHudFormName() {
     }
 }
 
-// The moiré bench knobs only mean anything for the 'moire' shape; hide them
-// elsewhere so the panel stays honest about what is wired to what.
+// The moiré bench knobs only mean anything for the 'moire' shape; the pitch
+// knob applies to every lattice form. Hide what isn't wired to anything.
+const PITCH_SHAPES = ['cube', 'plane', 'moire', 'tesseract', 'ruled'];
+
+// Particle count label: K up to 999K, then M. Amber above 200K because that
+// is where the per-frame CPU pass stops being free on a mid-range GPU.
+function syncParticleCountLabel() {
+    const label = document.getElementById('particle-count-value');
+    const n = S.particleCount;
+    label.textContent = n >= 1000000
+        ? (n / 1000000).toFixed(2) + 'M'
+        : (n / 1000).toFixed(0) + 'K';
+    label.classList.toggle('warn', n > 200000);
+    document.getElementById('particle-count').textContent = n.toLocaleString();
+}
+
 function syncMoireRows() {
     const on = S.currentShape === 'moire';
     document.querySelectorAll('.moire-only').forEach(row => {
         row.classList.toggle('on', on);
+    });
+    const pitchOn = PITCH_SHAPES.includes(S.currentShape);
+    document.querySelectorAll('.pitch-only').forEach(row => {
+        row.classList.toggle('on', pitchOn);
     });
 }
 
@@ -73,8 +91,7 @@ function setAudioStatus(text, cls) {
 // ============================================
 function updateUIFromState() {
     document.getElementById('particle-count-slider').value = S.particleCount;
-    document.getElementById('particle-count-value').textContent = (S.particleCount / 1000).toFixed(0) + 'K';
-    document.getElementById('particle-count').textContent = S.particleCount.toLocaleString();
+    syncParticleCountLabel();
     document.getElementById('particle-size').value = S.particleSize;
     document.getElementById('particle-size-value').textContent = S.particleSize.toFixed(1);
     document.getElementById('sim-speed').value = S.simSpeed;
@@ -92,6 +109,8 @@ function updateUIFromState() {
     document.getElementById('moire-twist-value').textContent = S.moireTwistDeg;
     document.getElementById('moire-gap').value = S.moireGap;
     document.getElementById('moire-gap-value').textContent = S.moireGap.toFixed(2);
+    document.getElementById('form-pitch').value = S.formPitch;
+    document.getElementById('form-pitch-value').textContent = S.formPitch.toFixed(2);
     syncMoireRows();
     document.getElementById('color-mode').value = S.colorMode;
     document.getElementById('hue-offset').value = S.hueOffset;
@@ -425,6 +444,7 @@ function writeConfigToState(cfg) {
     if (typeof cfg.moireLayers === 'number') S.moireLayers = cfg.moireLayers;
     if (typeof cfg.moireTwistDeg === 'number') S.moireTwistDeg = cfg.moireTwistDeg;
     if (typeof cfg.moireGap === 'number') S.moireGap = cfg.moireGap;
+    if (typeof cfg.formPitch === 'number') S.formPitch = cfg.formPitch;
     if (cfg.colorMode) S.colorMode = cfg.colorMode;
     if (typeof cfg.hueOffset === 'number') S.hueOffset = cfg.hueOffset;
     if (cfg.colorAnimation) S.colorAnimation = cfg.colorAnimation;
@@ -709,9 +729,7 @@ function setupEventListeners() {
             S.particleCount = newCount;
             render.rebuildParticles();
         }
-        document.getElementById('particle-count-value').textContent =
-            (S.particleCount / 1000).toFixed(0) + 'K';
-        document.getElementById('particle-count').textContent = S.particleCount.toLocaleString();
+        syncParticleCountLabel();
     });
 
     document.getElementById('particle-size').addEventListener('input', e => {
@@ -773,6 +791,11 @@ function setupEventListeners() {
     document.getElementById('moire-gap').addEventListener('input', e => {
         S.moireGap = parseFloat(e.target.value);
         document.getElementById('moire-gap-value').textContent = S.moireGap.toFixed(2);
+    });
+
+    document.getElementById('form-pitch').addEventListener('input', e => {
+        S.formPitch = parseFloat(e.target.value);
+        document.getElementById('form-pitch-value').textContent = S.formPitch.toFixed(2);
     });
 
     // --- Color ---

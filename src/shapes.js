@@ -18,11 +18,36 @@ let formChaos = 0;
 let customOffsets = null;
 
 // Moiré bench parameters (only the 'moire' shape reads them): how many
-// parallel lattices, the static twist between neighbours, and the gap
-// along the view axis. These are what turn overlapping grids into beats.
+// parallel lattices, the static twist between neighbours, the gap
+// along the view axis, and the lattice pitch (distance between points).
 let moireLayers = 4;
 let moireTwist = 0.14;   // radians between adjacent layers
 let moireGap = 0.5;      // layer spacing as a fraction of formScale
+
+// Lattice pitch multiplier: the distance between neighbouring points.
+// Point count stays put, the grid spreads or tightens under it. Read by the
+// grid forms (cube, plane, moire, tesseract, ruled); organic forms ignore it.
+let formPitch = 1;
+
+// Per-frame trig caches. The lattice angle depends on the LAYER (or the
+// thread), never on the particle, so recomputing it per particle costs
+// ~4M cos/sin calls per frame at 500K particles. Each cache is keyed on
+// the inputs that produced it: one hit reuses the whole frame's work.
+let moireKeyTime = NaN, moireKeyRot = NaN, moireKeyTwist = NaN;
+let moireKeyLayers = -1, moireKeyGap = NaN, moireKeyScale = NaN;
+const moireCa = new Float32Array(8);
+const moireSa = new Float32Array(8);
+const moireZ = new Float32Array(8);
+
+let tessKeyTime = NaN, tessKeyRot = NaN;
+const tessTrig = new Float32Array(4);   // cos a, sin a, cos b, sin b
+
+let ruledKeyTime = NaN, ruledKeyRot = NaN;
+const RULED_THREADS = 96;
+const ruledCb = new Float32Array(RULED_THREADS * 2);  // cos of bottom angle
+const ruledSb = new Float32Array(RULED_THREADS * 2);
+const ruledCt = new Float32Array(RULED_THREADS * 2);  // cos of top angle
+const ruledSt = new Float32Array(RULED_THREADS * 2);
 
 // Audio-driven modulation (multipliers live here so the shape
 // function stays dependency-free for exported code).
@@ -68,16 +93,21 @@ export function setShapeState(s) {
     if (typeof s.moireLayers === 'number') moireLayers = Math.max(2, Math.min(8, s.moireLayers | 0));
     if (typeof s.moireTwist === 'number') moireTwist = s.moireTwist;
     if (typeof s.moireGap === 'number') moireGap = Math.max(0.1, Math.min(1.2, s.moireGap));
+    if (typeof s.formPitch === 'number') formPitch = Math.max(0.4, Math.min(2, s.formPitch));
 }
 
 export function getShapeState() {
-    return { currentShape, formScale, formRotationSpeed, formChaos, moireLayers, moireTwist, moireGap };
+    return { currentShape, formScale, formRotationSpeed, formChaos, moireLayers, moireTwist, moireGap, formPitch };
 }
 
 export function setMoireState(layers, twist, gap) {
     moireLayers = Math.max(2, Math.min(8, layers | 0));
     moireTwist = twist;
     moireGap = Math.max(0.1, Math.min(1.2, gap));
+}
+
+export function setFormPitch(p) {
+    formPitch = Math.max(0.4, Math.min(2, p));
 }
 
 export function setFormScaleMod(m) { formScaleMod = m; }
@@ -136,7 +166,7 @@ export function writeShapePosition(i, t, time, out, o) {
             break;
         }
         case 'cube': {
-            const cubeSize = scale * 2;
+            const cubeSize = scale * 2 * formPitch;
             const cubeSide = Math.round(Math.cbrt(t));
             const ix = i % cubeSide;
             const iy = Math.floor(i / cubeSide) % cubeSide;
@@ -170,13 +200,27 @@ export function writeShapePosition(i, t, time, out, o) {
             const j = i - li * cell;
             const ux = (((j % side) + 0.5) / side) * 2 - 1;
             const uy = (((j / side | 0) + 0.5) / side) * 2 - 1;
-            // static wedge between neighbours + slow counter-rotation
-            const ang = li * moireTwist + time * rotSpeed * (li % 2 === 0 ? 0.5 : -0.5);
-            const ca = Math.cos(ang), sa = Math.sin(ang);
-            const ext = scale * 1.3;
+            // Layer geometry is per-layer, not per-particle: rebuild the
+            // table only when something it depends on actually moved.
+            if (time !== moireKeyTime || rotSpeed !== moireKeyRot ||
+                moireTwist !== moireKeyTwist || layers !== moireKeyLayers ||
+                moireGap !== moireKeyGap || scale !== moireKeyScale) {
+                moireKeyTime = time; moireKeyRot = rotSpeed; moireKeyTwist = moireTwist;
+                moireKeyLayers = layers; moireKeyGap = moireGap; moireKeyScale = scale;
+                for (let l = 0; l < layers; l++) {
+                    const ang = l * moireTwist + time * rotSpeed * (l % 2 === 0 ? 0.5 : -0.5);
+                    moireCa[l] = Math.cos(ang);
+                    moireSa[l] = Math.sin(ang);
+                    moireZ[l] = (l - (layers - 1) / 2) * scale * moireGap;
+                }
+            }
+            // Pitch scales the neighbour distance: the point count stays
+            // put, the lattice spreads or tightens under it.
+            const ext = scale * 1.3 * formPitch;
+            const ca = moireCa[li], sa = moireSa[li];
             x = (ux * ca - uy * sa) * ext;
             y = (ux * sa + uy * ca) * ext;
-            z = (li - (layers - 1) / 2) * scale * moireGap;
+            z = moireZ[li];
             break;
         }
         case 'tesseract': {
@@ -201,17 +245,24 @@ export function writeShapePosition(i, t, time, out, o) {
             else if (axis === 1) { x4 = u; y4 = sign; z4 = v; w4 = w; }
             else if (axis === 2) { x4 = u; y4 = v; z4 = sign; w4 = w; }
             else { x4 = u; y4 = v; z4 = w; w4 = sign; }
-            const a = time * rotSpeed * 0.8;
-            const ca = Math.cos(a), sa = Math.sin(a);
+            // Both 4D rotations depend on time only: four trig calls per
+            // frame instead of four per particle.
+            if (time !== tessKeyTime || rotSpeed !== tessKeyRot) {
+                tessKeyTime = time; tessKeyRot = rotSpeed;
+                const a = time * rotSpeed * 0.8;
+                const b = time * rotSpeed * 0.5;
+                tessTrig[0] = Math.cos(a); tessTrig[1] = Math.sin(a);
+                tessTrig[2] = Math.cos(b); tessTrig[3] = Math.sin(b);
+            }
+            const ca = tessTrig[0], sa = tessTrig[1];
             const rx4 = x4 * ca - w4 * sa;
             w4 = x4 * sa + w4 * ca;
             x4 = rx4;
-            const b = time * rotSpeed * 0.5;
-            const cb = Math.cos(b), sb = Math.sin(b);
+            const cb = tessTrig[2], sb = tessTrig[3];
             const ry4 = y4 * cb - w4 * sb;
             w4 = y4 * sb + w4 * cb;
             y4 = ry4;
-            const k = scale * 1.35 / (2.8 - w4);        // 4D→3D perspective
+            const k = scale * 1.35 * formPitch / (2.8 - w4);        // 4D→3D perspective
             x = x4 * k;
             y = y4 * k;
             z = z4 * k;
@@ -225,19 +276,32 @@ export function writeShapePosition(i, t, time, out, o) {
             // threads. Two counter-rotating families then interfere,
             // and the surface appears to shimmer with grids that exist
             // nowhere in the data.
-            const threads = 96;
+            const threads = RULED_THREADS;
             const perThread = Math.max(4, Math.round(t / (threads * 2)));
             const seg = threads * perThread;
             const fam = Math.floor(i / seg) & 1;        // two opposing families
             const j = i % seg;
             const th = Math.floor(j / perThread);
             const s = ((j % perThread) + 0.5) / perThread;
-            const base = (th / threads) * PI2 + (fam ? Math.PI / threads : 0);
-            const twist = 2.1 + time * rotSpeed * (fam ? -0.4 : 0.4);
-            const r = scale * 0.62;
+            // Ring angles depend on time and the family twist only:
+            // 384 trig calls per frame, reused by every particle.
+            if (time !== ruledKeyTime || rotSpeed !== ruledKeyRot) {
+                ruledKeyTime = time; ruledKeyRot = rotSpeed;
+                for (let f = 0; f < 2; f++) {
+                    const tw = 2.1 + time * rotSpeed * (f ? -0.4 : 0.4);
+                    for (let n = 0; n < threads; n++) {
+                        const ba = (n / threads) * PI2 + (f ? Math.PI / threads : 0);
+                        const k = f * threads + n;
+                        ruledCb[k] = Math.cos(ba); ruledSb[k] = Math.sin(ba);
+                        ruledCt[k] = Math.cos(ba + tw); ruledSt[k] = Math.sin(ba + tw);
+                    }
+                }
+            }
+            const k = fam * threads + th;
+            const r = scale * 0.62 * formPitch;
             const h = scale * 0.9;
-            const bx = Math.cos(base) * r, bz = Math.sin(base) * r;
-            const tx = Math.cos(base + twist) * r, tz = Math.sin(base + twist) * r;
+            const bx = ruledCb[k] * r, bz = ruledSb[k] * r;
+            const tx = ruledCt[k] * r, tz = ruledSt[k] * r;
             x = bx + (tx - bx) * s;                     // strict linear interp
             y = (s - 0.5) * 2 * h;
             z = bz + (tz - bz) * s;
@@ -245,7 +309,7 @@ export function writeShapePosition(i, t, time, out, o) {
         }
         case 'plane': {
             const planeCols = Math.sqrt(t);
-            const planeSize = scale * 2;
+            const planeSize = scale * 2 * formPitch;
             const px = i % planeCols;
             const py = Math.floor(i / planeCols);
             x = ((px / planeCols) - 0.5) * planeSize;

@@ -86,7 +86,7 @@
             <h4>📊 SIMULATION</h4>
             <div class="control-row">
                 <label>Particle Count</label>
-                <input type="range" id="particle-count-slider" min="5000" max="100000" step="1000" value="40000">
+                <input type="range" id="particle-count-slider" min="5000" max="500000" step="5000" value="40000">
                 <span class="value" id="particle-count-value">20K</span>
             </div>
             <div class="control-row">
@@ -177,6 +177,11 @@
                 <label>Chaos</label>
                 <input type="range" id="form-chaos" min="0" max="100" step="1" value="0">
                 <span class="value" id="form-chaos-value">0</span>
+            </div>
+            <div class="control-row pitch-only">
+                <label>Pitch</label>
+                <input type="range" id="form-pitch" min="0.4" max="2" step="0.05" value="1">
+                <span class="value" id="form-pitch-value">1.00</span>
             </div>
             <div class="control-row moire-only">
                 <label>Layers</label>

@@ -32,9 +32,12 @@ asserted without a GPU. See *Roadmap* for the golden-frame idea.
 ## Features
 
 ### Rendering
-- 40 000 particles at 60 FPS (up to 100 000)
+- 40 000 particles at 60 FPS (up to 500 000; amber label past 200 000)
 - Custom GLSL shader — soft round particles, radial glow, per-particle twinkle (no more square points)
-- 10 parametric shapes (sphere, torus, helix, ribbon, vortex, chaos...) with smooth ease-in-out morphing
+- 13 parametric shapes with smooth ease-in-out morphing (sphere, torus, helix, ribbon, vortex, chaos…)
+- Interference forms: **Moiré Bench** (N parallel lattices, adjustable layer count / twist / gap / pitch), **Tesseract** (real 4D rotation in XW and YW, w-perspective projection), **Ruled** (straight threads whose envelope draws a curved waist — the surface is reconstructed by the eye, never drawn)
+- **Lattice Pitch** — distance between neighbouring points, decoupled from point count, on every grid form
+- Per-frame trig caches: layer/thread geometry computed once per frame, not once per particle (what makes 500K affordable)
 - 10 color modes + hue offset + 5 animation modes (static, scroll, wave, pulse, matrix)
 - Adaptive quality — auto-tunes bloom resolution under FPS drops
 - Zero-GC rendering loop (0–2 collections per second)

@@ -158,7 +158,8 @@ function syncShapeState() {
         formChaos: S.formChaos,
         moireLayers: S.moireLayers,
         moireTwist: S.moireTwistDeg * Math.PI / 180,
-        moireGap: S.moireGap
+        moireGap: S.moireGap,
+        formPitch: S.formPitch
     });
 }
 

@@ -289,6 +289,15 @@ button {
     display: flex;
 }
 
+/* Lattice pitch: collapsed outside the grid forms */
+.control-row.pitch-only {
+    display: none;
+}
+
+.control-row.pitch-only.on {
+    display: flex;
+}
+
 .control-row label {
     font-size: 9.5px;
     font-weight: 600;
@@ -306,6 +315,12 @@ button {
     min-width: 44px;
     text-align: right;
     font-variant-numeric: tabular-nums;
+}
+
+/* High particle counts are a deliberate stress knob: flag them in amber so
+   the number itself tells you the frame budget is being spent */
+.control-row .value.warn {
+    color: #ffb347;
 }
 
 /* Range inputs */

@@ -120,6 +120,23 @@ let formChaos = config.formChaos;
 let moireLayers = config.moireLayers || 4;
 let moireTwist = (config.moireTwistDeg || 8) * Math.PI / 180;
 let moireGap = config.moireGap || 0.5;
+let formPitch = config.formPitch || 1;
+
+// Per-frame trig caches (mirrors src/shapes.js): layer/thread geometry is
+// computed once per frame, not once per particle.
+let moireKeyTime = NaN, moireKeyRot = NaN, moireKeyTwist = NaN;
+let moireKeyLayers = -1, moireKeyGap = NaN, moireKeyScale = NaN;
+const moireCa = new Float32Array(8);
+const moireSa = new Float32Array(8);
+const moireZ = new Float32Array(8);
+let tessKeyTime = NaN, tessKeyRot = NaN;
+const tessTrig = new Float32Array(4);
+let ruledKeyTime = NaN, ruledKeyRot = NaN;
+const RULED_THREADS = 96;
+const ruledCb = new Float32Array(RULED_THREADS * 2);
+const ruledSb = new Float32Array(RULED_THREADS * 2);
+const ruledCt = new Float32Array(RULED_THREADS * 2);
+const ruledSt = new Float32Array(RULED_THREADS * 2);
 let formScaleMod = 1;
 let formRotationSpeedMod = 1;
 let colorMode = config.colorMode;

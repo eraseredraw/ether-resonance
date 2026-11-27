@@ -7,7 +7,10 @@ import {
 
 function gen(shape, count = 10000, t = 0) {
     const out = new Float32Array(count * 3);
-    setShapeState({ currentShape: shape, formScale: 150, formRotationSpeed: 0.3, formChaos: 0 });
+    // formPitch and the moiré knobs are shared module state: pin them so a
+    // test that changed them cannot leak geometry into the next one
+    setShapeState({ currentShape: shape, formScale: 150, formRotationSpeed: 0.3,
+        formChaos: 0, formPitch: 1, moireLayers: 4, moireTwist: 0.14, moireGap: 0.5 });
     clearOffsets();
     for (let i = 0; i < count; i++) writeShapePosition(i, count, t, out, i * 3);
     return out;
@@ -30,17 +33,17 @@ describe('shape functions', () => {
 
     it.each(SHAPES)('produces finite positions for %s', shape => {
         const out = gen(shape);
-        for (let i = 0; i < out.length; i++) {
-            expect(Number.isFinite(out[i])).toBe(true);
-        }
+        let nonFinite = 0;
+        for (let i = 0; i < out.length; i++) if (!Number.isFinite(out[i])) nonFinite++;
+        expect(nonFinite).toBe(0);
     });
 
     it.each(SHAPES)('keeps %s within scale bounds', shape => {
         const out = gen(shape, 20000);
         const maxAbs = 150 * 4; // formScale 150 + margin
-        for (let i = 0; i < out.length; i++) {
-            expect(Math.abs(out[i])).toBeLessThanOrEqual(maxAbs);
-        }
+        let worst = 0;
+        for (let i = 0; i < out.length; i++) worst = Math.max(worst, Math.abs(out[i]));
+        expect(worst).toBeLessThanOrEqual(maxAbs);
     }, 30000);
 
     it('sphere is roughly a sphere (avg radius ≈ formScale * 0.75)', () => {
@@ -102,7 +105,8 @@ describe('shape functions', () => {
 
 describe('pointer interaction', () => {
     beforeEach(() => {
-        setShapeState({ currentShape: 'sphere', formScale: 200, formRotationSpeed: 0, formChaos: 0 });
+        setShapeState({ currentShape: 'sphere', formScale: 200, formRotationSpeed: 0,
+            formChaos: 0, formPitch: 1 });
         setMouseState(-9999, -9999, 0);
         triggerWave(0, 0, -10); // wave expired
     });
@@ -279,4 +283,130 @@ describe('pointer interaction', () => {
         }
         expect(worst).toBeLessThan(1e-3);
     });
+
+    // --- lattice pitch: spread the grid, keep the point count ---
+
+    it('formPitch multiplies neighbour distance for grid forms', () => {
+        const count = 10000;
+        setMouseState(-9999, -9999, 0);
+        setFormScaleMod(1);
+        const gen = pitch => {
+            setShapeState({ currentShape: 'cube', formScale: 150, formRotationSpeed: 0,
+                formChaos: 0, formPitch: pitch });
+            const out = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
+            return out;
+        };
+        const a = gen(1);
+        const b = gen(2);
+        // particle 1 is one cell along X in both layouts: distance doubles
+        const da = Math.abs(a[3] - a[0]);
+        const db = Math.abs(b[3] - b[0]);
+        expect(da).toBeGreaterThan(0);
+        expect(db).toBeCloseTo(da * 2, 6);
+    });
+
+    // --- the per-frame trig caches must not alter geometry ---
+
+    it('moire cache matches naive per-particle trig', () => {
+        const count = 20000;
+        const twist = 0.14, rot = 0.3, time = 1.7;
+        setMouseState(-9999, -9999, 0);
+        setFormScaleMod(1);
+        setFormRotationSpeedMod(1);
+        setShapeState({ currentShape: 'moire', formScale: 150, formRotationSpeed: rot,
+            formChaos: 0, moireLayers: 5, moireTwist: twist, moireGap: 0.5, formPitch: 1.2 });
+        const out = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, time, out, i * 3);
+        const side = Math.round(Math.sqrt(count / 5));
+        const cell = side * side;
+        const ext = 150 * 1.3 * 1.2;
+        let worst = 0;
+        for (let i = 0; i < count; i += 977) {          // stride sample
+            const li = Math.min(Math.floor(i / cell), 4);
+            const j = i - li * cell;
+            const ux = (((j % side) + 0.5) / side) * 2 - 1;
+            const uy = (((j / side | 0) + 0.5) / side) * 2 - 1;
+            const ang = li * twist + time * rot * (li % 2 === 0 ? 0.5 : -0.5);
+            const o = i * 3;
+            worst = Math.max(worst,
+                Math.abs(out[o] - (ux * Math.cos(ang) - uy * Math.sin(ang)) * ext),
+                Math.abs(out[o + 1] - (ux * Math.sin(ang) + uy * Math.cos(ang)) * ext),
+                Math.abs(out[o + 2] - (li - 2) * 150 * 0.5));
+        }
+        expect(worst).toBeLessThan(1e-2);
+    });
+
+    it('tesseract and ruled caches match naive trig', () => {
+        const count = 20000;
+        const time = 2.3, rot = 0.3;
+        setMouseState(-9999, -9999, 0);
+        setFormScaleMod(1);
+        setFormRotationSpeedMod(1);
+        // tesseract: recompute the 4D rotation naively for one sampled face
+        setShapeState({ currentShape: 'tesseract', formScale: 150,
+            formRotationSpeed: rot, formChaos: 0, formPitch: 1 });
+        const tOut = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, time, tOut, i * 3);
+        const side = Math.max(4, Math.round(Math.cbrt(count / 8)));
+        const cell = side ** 3;
+        const f = 2, j = 5 * side + 3;                  // face z=-1, some (u,v,w)
+        const i0 = f * cell + j;
+        const u = (((j % side) + 0.5) / side) * 2 - 1;
+        const v = ((((Math.floor(j / side) % side)) + 0.5) / side) * 2 - 1;
+        const w = ((Math.floor(j / (side * side)) + 0.5) / side) * 2 - 1;
+        let x4 = u, y4 = v, z4 = -1, w4 = w;
+        const a = time * rot * 0.8, b = time * rot * 0.5;
+        let rx = x4 * Math.cos(a) - w4 * Math.sin(a);
+        w4 = x4 * Math.sin(a) + w4 * Math.cos(a); x4 = rx;
+        let ry = y4 * Math.cos(b) - w4 * Math.sin(b);
+        w4 = y4 * Math.sin(b) + w4 * Math.cos(b); y4 = ry;
+        const k = 150 * 1.35 / (2.8 - w4);
+        const o = i0 * 3;
+        expect(tOut[o]).toBeCloseTo(x4 * k, 2);
+        expect(tOut[o + 1]).toBeCloseTo(y4 * k, 2);
+        expect(tOut[o + 2]).toBeCloseTo(z4 * k, 2);
+        // ruled: naive thread endpoints for one sampled thread
+        setShapeState({ currentShape: 'ruled', formScale: 150,
+            formRotationSpeed: rot, formChaos: 0, formPitch: 1 });
+        const rOut = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, time, rOut, i * 3);
+        const threads = 96;
+        const perThread = Math.max(4, Math.round(count / (threads * 2)));
+        const seg = threads * perThread;
+        const th = 7, s = 0.5, fam = 1;
+        const idx = fam * seg + th * perThread + Math.floor(s * perThread);
+        const base = (th / threads) * Math.PI * 2 + Math.PI / threads;
+        const tw = 2.1 + time * rot * -0.4;
+        const r = 150 * 0.62;
+        const bx = Math.cos(base) * r, bz = Math.sin(base) * r;
+        const tx = Math.cos(base + tw) * r, tz = Math.sin(base + tw) * r;
+        const so = (Math.floor(s * perThread) + 0.5) / perThread;
+        const ro = idx * 3;
+        expect(rOut[ro]).toBeCloseTo(bx + (tx - bx) * so, 2);
+        expect(rOut[ro + 2]).toBeCloseTo(bz + (tz - bz) * so, 2);
+    });
+
+    it('500K particles stay finite and bounded (cache makes the cap affordable)', () => {
+        const count = 500000;
+        setMouseState(-9999, -9999, 0);
+        setFormScaleMod(1);
+        setShapeState({ currentShape: 'moire', formScale: 150, formRotationSpeed: 0.3,
+            formChaos: 0, moireLayers: 4, moireTwist: 0.14, moireGap: 0.5, formPitch: 1 });
+        const out = new Float32Array(count * 3);
+        const t0 = Date.now();
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, 1.0, out, i * 3);
+        const ms = Date.now() - t0;
+        // plain loops, one assertion each: per-element expect() would spend
+        // millions of calls on matcher overhead and hide the real timing
+        let nonFinite = 0;
+        for (let i = 0; i < out.length; i++) if (!Number.isFinite(out[i])) nonFinite++;
+        expect(nonFinite).toBe(0);
+        let worstAxis = 0;
+        for (let i = 0; i < count; i += 5003) worstAxis = Math.max(worstAxis, Math.abs(out[i * 3]));
+        expect(worstAxis).toBeLessThanOrEqual(600);
+        // naive per-particle trig at this count cost ~4M calls; the cached
+        // path must hold a full frame budget with room to spare
+        expect(ms).toBeLessThan(1500);
+    }, 30000);
 });

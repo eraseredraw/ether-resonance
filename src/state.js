@@ -11,7 +11,7 @@
 export const PI2 = Math.PI * 2;
 export const SQRT_PI = Math.sqrt(Math.PI);
 
-export const MAX_PARTICLES = 100000;
+export const MAX_PARTICLES = 500000;
 
 // Mobile particle budget. A mid-range phone GPU with UnrealBloom chokes on
 // 40K sprites; the old fixed default made the first load on a phone look
@@ -46,6 +46,9 @@ export const S = {
     moireLayers: 4,
     moireTwistDeg: 8,   // static twist between adjacent layers, degrees
     moireGap: 0.5,      // layer spacing as a fraction of formScale
+
+    // Lattice pitch: distance between neighbouring points (grid forms)
+    formPitch: 1,
 
     // Photo mode: particles spell an image instead of a shape (opt-in)
     photoMode: false,
@@ -108,6 +111,7 @@ export const DEFAULT_CONFIG = {
     moireLayers: 4,
     moireTwistDeg: 8,
     moireGap: 0.5,
+    formPitch: 1,
     colorMode: 'steel',
     hueOffset: 0,
     colorAnimation: 'static',
@@ -138,6 +142,7 @@ export function collectConfig() {
         moireLayers: S.moireLayers,
         moireTwistDeg: S.moireTwistDeg,
         moireGap: S.moireGap,
+        formPitch: S.formPitch,
         colorMode: S.colorMode,
         hueOffset: S.hueOffset,
         colorAnimation: S.colorAnimation,

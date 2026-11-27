@@ -122,6 +122,13 @@ let moireTwist = (config.moireTwistDeg || 8) * Math.PI / 180;
 let moireGap = config.moireGap || 0.5;
 let formPitch = config.formPitch || 1;
 
+// Surplus spreader: writeShapePosition calls this, so the exported snippet
+// needs it too (mirrors the helper in src/shapes.js verbatim).
+function wrapSurplus(i, cell, t) {
+    if (i < cell || t <= cell) return i % cell;
+    return Math.floor(((i - cell) * cell) / (t - cell));
+}
+
 // Per-frame trig caches (mirrors src/shapes.js): layer/thread geometry is
 // computed once per frame, not once per particle.
 let moireKeyTime = NaN, moireKeyRot = NaN, moireKeyTwist = NaN;

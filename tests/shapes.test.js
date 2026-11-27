@@ -223,7 +223,7 @@ describe('pointer interaction', () => {
             formChaos: 0, moireLayers: 4, moireTwist: twist, moireGap: 0.5 });
         const out = new Float32Array(count * 3);
         for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
-        const side = Math.round(Math.sqrt(count / 4)); // 50
+        const side = Math.max(6, Math.floor(Math.sqrt(count / 4))); // 50
         const cell = side * side;
         // same grid cell in layer 0 and layer 1: layer 1's XY must equal
         // layer 0's rotated by exactly the twist (wrap-free comparison).
@@ -268,7 +268,7 @@ describe('pointer interaction', () => {
         const out = new Float32Array(count * 3);
         for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
         const threads = 96;
-        const perThread = Math.round(count / (threads * 2));
+        const perThread = Math.max(4, Math.floor(count / (threads * 2)));
         const base = 10 * perThread;             // thread #10 of family 0
         const p0 = [out[base * 3], out[base * 3 + 1], out[base * 3 + 2]];
         const p1 = [out[(base + 1) * 3], out[(base + 1) * 3 + 1], out[(base + 1) * 3 + 2]];
@@ -318,7 +318,7 @@ describe('pointer interaction', () => {
             formChaos: 0, moireLayers: 5, moireTwist: twist, moireGap: 0.5, formPitch: 1.2 });
         const out = new Float32Array(count * 3);
         for (let i = 0; i < count; i++) writeShapePosition(i, count, time, out, i * 3);
-        const side = Math.round(Math.sqrt(count / 5));
+        const side = Math.max(6, Math.floor(Math.sqrt(count / 5)));
         const cell = side * side;
         const ext = 150 * 1.3 * 1.2;
         let worst = 0;
@@ -348,7 +348,7 @@ describe('pointer interaction', () => {
             formRotationSpeed: rot, formChaos: 0, formPitch: 1 });
         const tOut = new Float32Array(count * 3);
         for (let i = 0; i < count; i++) writeShapePosition(i, count, time, tOut, i * 3);
-        const side = Math.max(4, Math.round(Math.cbrt(count / 8)));
+        const side = Math.max(4, Math.floor(Math.cbrt(count / 8)));
         const cell = side ** 3;
         const f = 2, j = 5 * side + 3;                  // face z=-1, some (u,v,w)
         const i0 = f * cell + j;
@@ -372,7 +372,7 @@ describe('pointer interaction', () => {
         const rOut = new Float32Array(count * 3);
         for (let i = 0; i < count; i++) writeShapePosition(i, count, time, rOut, i * 3);
         const threads = 96;
-        const perThread = Math.max(4, Math.round(count / (threads * 2)));
+        const perThread = Math.max(4, Math.floor(count / (threads * 2)));
         const seg = threads * perThread;
         const th = 7, s = 0.5, fam = 1;
         const idx = fam * seg + th * perThread + Math.floor(s * perThread);
@@ -406,7 +406,59 @@ describe('pointer interaction', () => {
             }
             const ratio = Math.max(...ext) / Math.min(...ext);
             expect(ratio).toBeLessThan(1.001);
-            expect(zs.size).toBe(Math.round(Math.cbrt(count)));
+            expect(zs.size).toBe(Math.max(6, Math.floor(Math.cbrt(count))));
+        }
+    }, 60000);
+
+    it('cube is whole at DEFICIT counts too (mobile default 15000)', () => {
+        // round(cbrt(15000)) = 25 wants 15625 slots: the last z-slice never
+        // filled, so the box had a bite taken out of it. floor + spread-wrap
+        // must cover every cell of side³, with surplus scattered as at most a
+        // doubling (never a pile-up that would bloom in one corner).
+        const count = 15000;
+        setMouseState(-9999, -9999, 0);
+        setFormScaleMod(1);
+        setShapeState({ currentShape: 'cube', formScale: 150, formRotationSpeed: 0,
+            formChaos: 0, formPitch: 1 });
+        const out = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
+        const side = Math.floor(Math.cbrt(count));      // 24
+        const cells = new Map();
+        for (let i = 0; i < count; i++) {
+            const key = out[i * 3].toFixed(4) + '/' + out[i * 3 + 1].toFixed(4)
+                + '/' + out[i * 3 + 2].toFixed(4);
+            cells.set(key, (cells.get(key) || 0) + 1);
+        }
+        // every lattice position occupied: the box is complete
+        expect(cells.size).toBe(side * side * side);
+        // surplus spread: no cell carries more than twice its share
+        let maxDup = 0;
+        for (const n of cells.values()) maxDup = Math.max(maxDup, n);
+        expect(maxDup).toBe(2);
+        const zs = new Set();
+        for (let i = 0; i < count; i++) zs.add(out[i * 3 + 2].toFixed(4));
+        expect(zs.size).toBe(side);
+        const ext = [0, 0, 0];
+        for (let i = 0; i < count; i++) {
+            for (let k = 0; k < 3; k++) ext[k] = Math.max(ext[k], Math.abs(out[i * 3 + k]));
+        }
+        expect(Math.max(...ext) / Math.min(...ext)).toBeLessThan(1.001);
+    });
+
+    it('plane stays a square sheet (integer columns, no runaway rows)', () => {
+        for (const count of [15000, 40000, 500000]) {
+            setMouseState(-9999, -9999, 0);
+            setFormScaleMod(1);
+            setShapeState({ currentShape: 'plane', formScale: 150, formRotationSpeed: 0,
+                formChaos: 0, formPitch: 1 });
+            const out = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
+            let ex = 0, ey = 0;
+            for (let i = 0; i < count; i++) {
+                ex = Math.max(ex, Math.abs(out[i * 3]));
+                ey = Math.max(ey, Math.abs(out[i * 3 + 1]));
+            }
+            expect(ex / ey).toBeCloseTo(1, 5);
         }
     }, 60000);
 

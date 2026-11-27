@@ -83,6 +83,15 @@ export function getPointerState() {
     return { mouseX, mouseY, mouseStrength, waveStart, waveX, waveY };
 }
 
+// Spread the surplus of t over a cell-sized lattice uniformly. Indices below
+// `cell` fill the lattice once; the remainder re-uses cells at an even stride
+// so duplicates scatter through the whole volume instead of piling up at the
+// origin (coincident points are invisible only when they are everywhere).
+function wrapSurplus(i, cell, t) {
+    if (i < cell || t <= cell) return i % cell;
+    return Math.floor(((i - cell) * cell) / (t - cell));
+}
+
 let offsetSource = null;
 
 export function setShapeState(s) {
@@ -167,12 +176,14 @@ export function writeShapePosition(i, t, time, out, o) {
         }
         case 'cube': {
             const cubeSize = scale * 2 * formPitch;
-            const cubeSide = Math.max(6, Math.round(Math.cbrt(t)));
+            // floor, not round: round overshoots when t is just below a
+            // perfect cube (15000 → side 25 needs 15625 slots) and the last
+            // z-slice simply never gets filled — a cube with a bite taken
+            // out. floor keeps side³ ≤ t, the remainder wraps below as
+            // coincident duplicates: invisible, and the box is whole.
+            const cubeSide = Math.max(6, Math.floor(Math.cbrt(t)));
             const cubeCell = cubeSide * cubeSide * cubeSide;
-            // The tail beyond side³ wraps instead of stacking extra z-slices:
-            // duplicate points coincide (invisible), the box keeps its
-            // proportions at ANY particle count.
-            const ci = i % cubeCell;
+            const ci = wrapSurplus(i, cubeCell, t);
             const ix = ci % cubeSide;
             const iy = Math.floor(ci / cubeSide) % cubeSide;
             const iz = Math.floor(ci / (cubeSide * cubeSide));
@@ -198,11 +209,13 @@ export function writeShapePosition(i, t, time, out, o) {
             // superposition keeps growing and dissolving beat fringes.
             // Nothing curved here: the illusion is pure interference.
             const layers = moireLayers;
-            const side = Math.max(6, Math.round(Math.sqrt(t / layers)));
+            // floor + wrap: same rule as the cube. A partial layer would
+            // read as a sheared grid and kill the beat structure.
+            const side = Math.max(6, Math.floor(Math.sqrt(t / layers)));
             const cell = side * side;
-            let li = Math.floor(i / cell);
-            if (li >= layers) li = layers - 1;          // tail packs the last layer
-            const j = i - li * cell;
+            const wrapped = wrapSurplus(i, cell * layers, t);
+            const li = Math.floor(wrapped / cell);
+            const j = wrapped - li * cell;
             const ux = (((j % side) + 0.5) / side) * 2 - 1;
             const uy = (((j / side | 0) + 0.5) / side) * 2 - 1;
             // Layer geometry is per-layer, not per-particle: rebuild the
@@ -235,11 +248,11 @@ export function writeShapePosition(i, t, time, out, o) {
             // then a perspective divide on w folds it into 3D. The
             // opposite faces are parallel screens — the same moiré the
             // cube gives, but the inner shell breathes through the outer.
-            const side = Math.max(4, Math.round(Math.cbrt(t / 8)));
+            const side = Math.max(4, Math.floor(Math.cbrt(t / 8)));
             const cell = side * side * side;
-            let f = Math.floor(i / cell);
-            if (f >= 8) f = 7;                          // tail packs the last face
-            const j = i - f * cell;
+            const tw8 = wrapSurplus(i, cell * 8, t);   // floor + wrap, as in cube
+            const f = Math.floor(tw8 / cell);
+            const j = tw8 - f * cell;
             const u = (((j % side) + 0.5) / side) * 2 - 1;
             const v = ((((j / side | 0) % side) + 0.5) / side) * 2 - 1;
             const w = ((Math.floor(j / (side * side)) + 0.5) / side) * 2 - 1;
@@ -282,10 +295,11 @@ export function writeShapePosition(i, t, time, out, o) {
             // and the surface appears to shimmer with grids that exist
             // nowhere in the data.
             const threads = RULED_THREADS;
-            const perThread = Math.max(4, Math.round(t / (threads * 2)));
+            const perThread = Math.max(4, Math.floor(t / (threads * 2)));
             const seg = threads * perThread;
-            const fam = Math.floor(i / seg) & 1;        // two opposing families
-            const j = i % seg;
+            const wr = wrapSurplus(i, seg * 2, t);     // floor + wrap: both families whole
+            const fam = Math.floor(wr / seg) & 1;       // two opposing families
+            const j = wr % seg;
             const th = Math.floor(j / perThread);
             const s = ((j % perThread) + 0.5) / perThread;
             // Ring angles depend on time and the family twist only:
@@ -313,10 +327,15 @@ export function writeShapePosition(i, t, time, out, o) {
             break;
         }
         case 'plane': {
-            const planeCols = Math.sqrt(t);
+            // floor + wrap: an integer column count, and the sheet is square.
+            // Non-integer cols made `i % cols` fractional and the tail ran
+            // off into unbounded rows.
+            const planeCols = Math.max(6, Math.floor(Math.sqrt(t)));
+            const planeCell = planeCols * planeCols;
+            const pw = wrapSurplus(i, planeCell, t);
+            const px = pw % planeCols;
+            const py = Math.floor(pw / planeCols);
             const planeSize = scale * 2 * formPitch;
-            const px = i % planeCols;
-            const py = Math.floor(i / planeCols);
             x = ((px / planeCols) - 0.5) * planeSize;
             y = ((py / planeCols) - 0.5) * planeSize;
             z = Math.sin((px / planeCols) * Math.PI * 4 + time) * 20 + Math.cos((py / planeCols) * Math.PI * 4 + time) * 20;

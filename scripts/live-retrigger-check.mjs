@@ -16,7 +16,7 @@ import pixelmatch from 'pixelmatch';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = process.env.LIVE_OUT_DIR || os.tmpdir();
 const PORT = 8124;
-const W = 640, H = 400;
+const W = 960, H = 540;   // same as golden.mjs: the desktop panel is unfolded here
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -85,13 +85,23 @@ try {
   await page.goto(`http://127.0.0.1:${PORT}/`, { waitUntil: 'domcontentloaded' });
   await new Promise(r => setTimeout(r, 4000));       // let the scene settle
 
+  // Deterministic clicks that do not depend on the panel being unfolded:
+  // Element.click() runs the same listener a tap would. What is under test is
+  // the handler chain (knob → S → dirty flag → buffer), not hit-testing.
+  const click = (id) => page.evaluate(sel => {
+    const el = document.getElementById(sel);
+    if (!el) throw new Error('missing element #' + sel);
+    el.click();
+    return true;
+  }, id);
+
   // auto-rotate would move the camera and pollute every comparison
   await page.evaluate(() => {
     const el = document.getElementById('auto-rotate');
     if (el.checked) el.click();
   });
   // freeze the field
-  await page.click('#btn-play-pause');
+  await click('btn-play-pause');
   await new Promise(r => setTimeout(r, 600));
 
   const A = await shot(page, 'rt-a');
@@ -106,7 +116,7 @@ try {
   const B = await shot(page, 'rt-b');
 
   // Retrigger on an already-consistent field must be idempotent, not a crash
-  await page.click('#btn-retrigger');
+  await click('btn-retrigger');
   await new Promise(r => setTimeout(r, 800));
   const C = await shot(page, 'rt-c');
 

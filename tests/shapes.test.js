@@ -19,10 +19,13 @@ describe('shape functions', () => {
         setFormRotationSpeedMod(1);
     });
 
-    it('SHAPES covers all 10 forms', () => {
-        expect(SHAPES).toHaveLength(10);
+    it('SHAPES covers all 13 forms', () => {
+        expect(SHAPES).toHaveLength(13);
         expect(SHAPES).toContain('sphere');
         expect(SHAPES).toContain('chaos');
+        expect(SHAPES).toContain('moire');
+        expect(SHAPES).toContain('tesseract');
+        expect(SHAPES).toContain('ruled');
     });
 
     it.each(SHAPES)('produces finite positions for %s', shape => {
@@ -188,5 +191,92 @@ describe('pointer interaction', () => {
         for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0, a, i * 3);
         for (let i = 0; i < 200; i++) writeShapePosition(i, 200, 0, b, i * 3);
         expect(Array.from(b)).toEqual(Array.from(a));
+    });
+
+    // --- moiré bench: the interference IS the feature, so pin it down ---
+    // Shared module vars (pointer state, audio multipliers) survive across
+    // tests, so reset them here and assert pure geometry.
+
+    it('moire stacks the configured number of parallel layers', () => {
+        const count = 10000;
+        setMouseState(-9999, -9999, 0);
+        setFormScaleMod(1);
+        setFormRotationSpeedMod(1);
+        setShapeState({ currentShape: 'moire', formScale: 150, formRotationSpeed: 0,
+            formChaos: 0, moireLayers: 4, moireTwist: 0.14, moireGap: 0.5 });
+        const out = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
+        const zs = new Set();
+        for (let i = 0; i < count; i++) zs.add(out[i * 3 + 2].toFixed(3));
+        expect(zs.size).toBe(4);
+    });
+
+    it('moire twists adjacent layers by the configured angle', () => {
+        const count = 10000;
+        const twist = 0.14;
+        setMouseState(-9999, -9999, 0);
+        setShapeState({ currentShape: 'moire', formScale: 150, formRotationSpeed: 0,
+            formChaos: 0, moireLayers: 4, moireTwist: twist, moireGap: 0.5 });
+        const out = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
+        const side = Math.round(Math.sqrt(count / 4)); // 50
+        const cell = side * side;
+        // same grid cell in layer 0 and layer 1: layer 1's XY must equal
+        // layer 0's rotated by exactly the twist (wrap-free comparison).
+        // Positions live at slot i*3, so index the slot, not the particle.
+        const j = 12 * side + 7;
+        const s0 = j * 3, s1 = (cell + j) * 3;
+        const x0 = out[s0], y0 = out[s0 + 1];
+        const x1 = out[s1], y1 = out[s1 + 1];
+        const cs = Math.cos(twist), sn = Math.sin(twist);
+        expect(x1).toBeCloseTo(x0 * cs - y0 * sn, 4);
+        expect(y1).toBeCloseTo(x0 * sn + y0 * cs, 4);
+        // layers are parallel screens: same cell, different depth
+        expect(out[s0 + 2]).not.toBe(out[s1 + 2]);
+    });
+
+    it('tesseract breathes under 4D rotation (projection radius shifts over time)', () => {
+        const count = 10000;
+        setMouseState(-9999, -9999, 0);
+        const at = t => {
+            setShapeState({ currentShape: 'tesseract', formScale: 150,
+                formRotationSpeed: 0.3, formChaos: 0 });
+            const out = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) writeShapePosition(i, count, t, out, i * 3);
+            let sum = 0;
+            for (let i = 0; i < count; i++) {
+                const o = i * 3;
+                sum += Math.hypot(out[o], out[o + 1], out[o + 2]);
+            }
+            return sum / count;
+        };
+        const r0 = at(0);
+        const r1 = at(2.5);
+        expect(Math.abs(r0 - r1)).toBeGreaterThan(1); // w-perspective really moved points
+        expect(r0).toBeGreaterThan(40);
+        expect(r1).toBeLessThan(600);
+    });
+
+    it('ruled threads are strictly straight (curvature is only the envelope)', () => {
+        const count = 10000;
+        setMouseState(-9999, -9999, 0);
+        setShapeState({ currentShape: 'ruled', formScale: 150, formRotationSpeed: 0, formChaos: 0 });
+        const out = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
+        const threads = 96;
+        const perThread = Math.round(count / (threads * 2));
+        const base = 10 * perThread;             // thread #10 of family 0
+        const p0 = [out[base * 3], out[base * 3 + 1], out[base * 3 + 2]];
+        const p1 = [out[(base + 1) * 3], out[(base + 1) * 3 + 1], out[(base + 1) * 3 + 2]];
+        const d = p1.map((v, k) => v - p0[k]);
+        let worst = 0;
+        for (let s = 2; s < perThread; s++) {
+            const o = (base + s) * 3;
+            // expected point = p0 + s * d (linear in the thread parameter)
+            for (let k = 0; k < 3; k++) {
+                worst = Math.max(worst, Math.abs(out[o + k] - (p0[k] + s * d[k])));
+            }
+        }
+        expect(worst).toBeLessThan(1e-3);
     });
 });

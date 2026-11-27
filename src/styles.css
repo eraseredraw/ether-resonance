@@ -280,6 +280,15 @@ button {
     margin-bottom: var(--sp-3);
 }
 
+/* Moiré bench knobs: collapsed until the 'moire' shape is active */
+.control-row.moire-only {
+    display: none;
+}
+
+.control-row.moire-only.on {
+    display: flex;
+}
+
 .control-row label {
     font-size: 9.5px;
     font-weight: 600;

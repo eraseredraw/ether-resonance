@@ -42,6 +42,11 @@ export const S = {
     formRotationSpeed: 0.3,
     formChaos: 0,
 
+    // Moiré bench (read by the 'moire' shape only)
+    moireLayers: 4,
+    moireTwistDeg: 8,   // static twist between adjacent layers, degrees
+    moireGap: 0.5,      // layer spacing as a fraction of formScale
+
     // Photo mode: particles spell an image instead of a shape (opt-in)
     photoMode: false,
 
@@ -100,6 +105,9 @@ export const DEFAULT_CONFIG = {
     formScale: 150,
     formRotationSpeed: 0.3,
     formChaos: 0,
+    moireLayers: 4,
+    moireTwistDeg: 8,
+    moireGap: 0.5,
     colorMode: 'steel',
     hueOffset: 0,
     colorAnimation: 'static',
@@ -127,6 +135,9 @@ export function collectConfig() {
         formScale: S.formScale,
         formRotationSpeed: S.formRotationSpeed,
         formChaos: S.formChaos,
+        moireLayers: S.moireLayers,
+        moireTwistDeg: S.moireTwistDeg,
+        moireGap: S.moireGap,
         colorMode: S.colorMode,
         hueOffset: S.hueOffset,
         colorAnimation: S.colorAnimation,

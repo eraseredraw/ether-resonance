@@ -152,6 +152,9 @@
                     <option value="torus">🍩 Torus</option>
                     <option value="spiral">🌀 Spiral</option>
                     <option value="cube" selected>📦 Cube</option>
+                    <option value="moire">🕸 Moiré Bench</option>
+                    <option value="tesseract">🧊 Tesseract</option>
+                    <option value="ruled">🪢 Ruled</option>
                     <option value="plane">📄 Plane</option>
                     <option value="helix">🌀 Helix</option>
                     <option value="donut">🍩 Donut</option>
@@ -174,6 +177,21 @@
                 <label>Chaos</label>
                 <input type="range" id="form-chaos" min="0" max="100" step="1" value="0">
                 <span class="value" id="form-chaos-value">0</span>
+            </div>
+            <div class="control-row moire-only">
+                <label>Layers</label>
+                <input type="range" id="moire-layers" min="2" max="8" step="1" value="4">
+                <span class="value" id="moire-layers-value">4</span>
+            </div>
+            <div class="control-row moire-only">
+                <label>Twist°</label>
+                <input type="range" id="moire-twist" min="0" max="45" step="0.5" value="8">
+                <span class="value" id="moire-twist-value">8</span>
+            </div>
+            <div class="control-row moire-only">
+                <label>Gap</label>
+                <input type="range" id="moire-gap" min="0.15" max="1.2" step="0.05" value="0.5">
+                <span class="value" id="moire-gap-value">0.5</span>
             </div>
         </div>
 

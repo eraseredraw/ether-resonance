@@ -6,7 +6,7 @@
 // self-contained for code export.
 // ============================================
 
-export const SHAPES = ['sphere', 'torus', 'spiral', 'cube', 'plane', 'helix', 'donut', 'ribbon', 'vortex', 'chaos'];
+export const SHAPES = ['sphere', 'torus', 'spiral', 'cube', 'tesseract', 'moire', 'ruled', 'plane', 'helix', 'donut', 'ribbon', 'vortex', 'chaos'];
 
 const PI2 = Math.PI * 2;
 const SQRT_PI = Math.sqrt(Math.PI);
@@ -16,6 +16,13 @@ let formScale = 150;
 let formRotationSpeed = 0.3;
 let formChaos = 0;
 let customOffsets = null;
+
+// Moiré bench parameters (only the 'moire' shape reads them): how many
+// parallel lattices, the static twist between neighbours, and the gap
+// along the view axis. These are what turn overlapping grids into beats.
+let moireLayers = 4;
+let moireTwist = 0.14;   // radians between adjacent layers
+let moireGap = 0.5;      // layer spacing as a fraction of formScale
 
 // Audio-driven modulation (multipliers live here so the shape
 // function stays dependency-free for exported code).
@@ -58,10 +65,19 @@ export function setShapeState(s) {
     if (typeof s.formScale === 'number') formScale = s.formScale;
     if (typeof s.formRotationSpeed === 'number') formRotationSpeed = s.formRotationSpeed;
     if (typeof s.formChaos === 'number') formChaos = s.formChaos;
+    if (typeof s.moireLayers === 'number') moireLayers = Math.max(2, Math.min(8, s.moireLayers | 0));
+    if (typeof s.moireTwist === 'number') moireTwist = s.moireTwist;
+    if (typeof s.moireGap === 'number') moireGap = Math.max(0.1, Math.min(1.2, s.moireGap));
 }
 
 export function getShapeState() {
-    return { currentShape, formScale, formRotationSpeed, formChaos };
+    return { currentShape, formScale, formRotationSpeed, formChaos, moireLayers, moireTwist, moireGap };
+}
+
+export function setMoireState(layers, twist, gap) {
+    moireLayers = Math.max(2, Math.min(8, layers | 0));
+    moireTwist = twist;
+    moireGap = Math.max(0.1, Math.min(1.2, gap));
 }
 
 export function setFormScaleMod(m) { formScaleMod = m; }
@@ -138,6 +154,93 @@ export function writeShapePosition(i, t, time, out, o) {
             cz = cx * sinRot + cz * cosRot;
             cx = rx;
             x = cx; y = cy; z = cz;
+            break;
+        }
+        case 'moire': {
+            // Moiré bench: `moireLayers` parallel square lattices stacked
+            // along Z. Adjacent layers carry the same grid pitch but are
+            // twisted by `moireTwist` and counter-rotate, so their
+            // superposition keeps growing and dissolving beat fringes.
+            // Nothing curved here: the illusion is pure interference.
+            const layers = moireLayers;
+            const side = Math.max(6, Math.round(Math.sqrt(t / layers)));
+            const cell = side * side;
+            let li = Math.floor(i / cell);
+            if (li >= layers) li = layers - 1;          // tail packs the last layer
+            const j = i - li * cell;
+            const ux = (((j % side) + 0.5) / side) * 2 - 1;
+            const uy = (((j / side | 0) + 0.5) / side) * 2 - 1;
+            // static wedge between neighbours + slow counter-rotation
+            const ang = li * moireTwist + time * rotSpeed * (li % 2 === 0 ? 0.5 : -0.5);
+            const ca = Math.cos(ang), sa = Math.sin(ang);
+            const ext = scale * 1.3;
+            x = (ux * ca - uy * sa) * ext;
+            y = (ux * sa + uy * ca) * ext;
+            z = (li - (layers - 1) / 2) * scale * moireGap;
+            break;
+        }
+        case 'tesseract': {
+            // Hypercube SHELL: its boundary is 8 cubical faces, so each
+            // particle lands on one face and gets 3 free lattice axes.
+            // Rotation happens in the XW and YW planes (real 4D motion),
+            // then a perspective divide on w folds it into 3D. The
+            // opposite faces are parallel screens — the same moiré the
+            // cube gives, but the inner shell breathes through the outer.
+            const side = Math.max(4, Math.round(Math.cbrt(t / 8)));
+            const cell = side * side * side;
+            let f = Math.floor(i / cell);
+            if (f >= 8) f = 7;                          // tail packs the last face
+            const j = i - f * cell;
+            const u = (((j % side) + 0.5) / side) * 2 - 1;
+            const v = ((((j / side | 0) % side) + 0.5) / side) * 2 - 1;
+            const w = ((Math.floor(j / (side * side)) + 0.5) / side) * 2 - 1;
+            const axis = f & 3;                         // 0=x 1=y 2=z 3=w
+            const sign = f < 4 ? -1 : 1;
+            let x4, y4, z4, w4;
+            if (axis === 0) { x4 = sign; y4 = u; z4 = v; w4 = w; }
+            else if (axis === 1) { x4 = u; y4 = sign; z4 = v; w4 = w; }
+            else if (axis === 2) { x4 = u; y4 = v; z4 = sign; w4 = w; }
+            else { x4 = u; y4 = v; z4 = w; w4 = sign; }
+            const a = time * rotSpeed * 0.8;
+            const ca = Math.cos(a), sa = Math.sin(a);
+            const rx4 = x4 * ca - w4 * sa;
+            w4 = x4 * sa + w4 * ca;
+            x4 = rx4;
+            const b = time * rotSpeed * 0.5;
+            const cb = Math.cos(b), sb = Math.sin(b);
+            const ry4 = y4 * cb - w4 * sb;
+            w4 = y4 * sb + w4 * cb;
+            y4 = ry4;
+            const k = scale * 1.35 / (2.8 - w4);        // 4D→3D perspective
+            x = x4 * k;
+            y = y4 * k;
+            z = z4 * k;
+            break;
+        }
+        case 'ruled': {
+            // Ruled hyperboloid: every particle sits on a perfectly
+            // STRAIGHT thread stretched between two rings, the top ring
+            // twisted ~120° from the bottom. The envelope the eye reads
+            // as a curved waist is not drawn — it is the caustic of the
+            // threads. Two counter-rotating families then interfere,
+            // and the surface appears to shimmer with grids that exist
+            // nowhere in the data.
+            const threads = 96;
+            const perThread = Math.max(4, Math.round(t / (threads * 2)));
+            const seg = threads * perThread;
+            const fam = Math.floor(i / seg) & 1;        // two opposing families
+            const j = i % seg;
+            const th = Math.floor(j / perThread);
+            const s = ((j % perThread) + 0.5) / perThread;
+            const base = (th / threads) * PI2 + (fam ? Math.PI / threads : 0);
+            const twist = 2.1 + time * rotSpeed * (fam ? -0.4 : 0.4);
+            const r = scale * 0.62;
+            const h = scale * 0.9;
+            const bx = Math.cos(base) * r, bz = Math.sin(base) * r;
+            const tx = Math.cos(base + twist) * r, tz = Math.sin(base + twist) * r;
+            x = bx + (tx - bx) * s;                     // strict linear interp
+            y = (s - 0.5) * 2 * h;
+            z = bz + (tz - bz) * s;
             break;
         }
         case 'plane': {

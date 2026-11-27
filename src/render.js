@@ -151,7 +151,15 @@ function setFrameHook(fn) {
 
 // Sync state into modules (audio modulation lives there too)
 function syncShapeState() {
-    setShapeState({ currentShape: S.currentShape, formScale: S.formScale, formRotationSpeed: S.formRotationSpeed, formChaos: S.formChaos });
+    setShapeState({
+        currentShape: S.currentShape,
+        formScale: S.formScale,
+        formRotationSpeed: S.formRotationSpeed,
+        formChaos: S.formChaos,
+        moireLayers: S.moireLayers,
+        moireTwist: S.moireTwistDeg * Math.PI / 180,
+        moireGap: S.moireGap
+    });
 }
 
 function syncColorState() {

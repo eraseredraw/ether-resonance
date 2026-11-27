@@ -52,6 +52,15 @@ function updateHudFormName() {
     }
 }
 
+// The moiré bench knobs only mean anything for the 'moire' shape; hide them
+// elsewhere so the panel stays honest about what is wired to what.
+function syncMoireRows() {
+    const on = S.currentShape === 'moire';
+    document.querySelectorAll('.moire-only').forEach(row => {
+        row.classList.toggle('on', on);
+    });
+}
+
 function setAudioStatus(text, cls) {
     const el = document.getElementById('audio-status');
     if (!el) return;
@@ -77,6 +86,13 @@ function updateUIFromState() {
     document.getElementById('form-rotation-value').textContent = S.formRotationSpeed.toFixed(2);
     document.getElementById('form-chaos').value = S.formChaos;
     document.getElementById('form-chaos-value').textContent = S.formChaos;
+    document.getElementById('moire-layers').value = S.moireLayers;
+    document.getElementById('moire-layers-value').textContent = S.moireLayers;
+    document.getElementById('moire-twist').value = S.moireTwistDeg;
+    document.getElementById('moire-twist-value').textContent = S.moireTwistDeg;
+    document.getElementById('moire-gap').value = S.moireGap;
+    document.getElementById('moire-gap-value').textContent = S.moireGap.toFixed(2);
+    syncMoireRows();
     document.getElementById('color-mode').value = S.colorMode;
     document.getElementById('hue-offset').value = S.hueOffset;
     document.getElementById('hue-offset-value').textContent = S.hueOffset + '°';
@@ -406,6 +422,9 @@ function writeConfigToState(cfg) {
     if (typeof cfg.formScale === 'number') S.formScale = cfg.formScale;
     if (typeof cfg.formRotationSpeed === 'number') S.formRotationSpeed = cfg.formRotationSpeed;
     if (typeof cfg.formChaos === 'number') S.formChaos = cfg.formChaos;
+    if (typeof cfg.moireLayers === 'number') S.moireLayers = cfg.moireLayers;
+    if (typeof cfg.moireTwistDeg === 'number') S.moireTwistDeg = cfg.moireTwistDeg;
+    if (typeof cfg.moireGap === 'number') S.moireGap = cfg.moireGap;
     if (cfg.colorMode) S.colorMode = cfg.colorMode;
     if (typeof cfg.hueOffset === 'number') S.hueOffset = cfg.hueOffset;
     if (cfg.colorAnimation) S.colorAnimation = cfg.colorAnimation;
@@ -722,6 +741,7 @@ function setupEventListeners() {
     document.getElementById('shape-select').addEventListener('change', e => {
         render.morphToShape(e.target.value, 1.0);
         updateHudFormName();
+        syncMoireRows();
     });
 
     document.getElementById('form-scale').addEventListener('input', e => {
@@ -737,6 +757,22 @@ function setupEventListeners() {
     document.getElementById('form-chaos').addEventListener('input', e => {
         S.formChaos = parseInt(e.target.value);
         document.getElementById('form-chaos-value').textContent = e.target.value;
+    });
+
+    // --- Moiré bench (visible only for the 'moire' shape) ---
+    document.getElementById('moire-layers').addEventListener('input', e => {
+        S.moireLayers = parseInt(e.target.value);
+        document.getElementById('moire-layers-value').textContent = e.target.value;
+    });
+
+    document.getElementById('moire-twist').addEventListener('input', e => {
+        S.moireTwistDeg = parseFloat(e.target.value);
+        document.getElementById('moire-twist-value').textContent = e.target.value;
+    });
+
+    document.getElementById('moire-gap').addEventListener('input', e => {
+        S.moireGap = parseFloat(e.target.value);
+        document.getElementById('moire-gap-value').textContent = S.moireGap.toFixed(2);
     });
 
     // --- Color ---

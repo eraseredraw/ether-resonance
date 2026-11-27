@@ -837,6 +837,23 @@ function setupEventListeners() {
         render.updateParticles();
     });
 
+    // --- Retrigger ---
+    // Escape hatch for the failure mode the form knobs used to have: a value
+    // sitting in S that the frame loop never pushed into the buffers (it is
+    // gated on !S.isPaused). Positions are always rewritten, colours follow
+    // the dirty flag — so one click settles everything that is pending,
+    // without the old workaround of nudging particle count or hue.
+    document.getElementById('btn-retrigger').addEventListener('click', () => {
+        if (S.isMorphing) {
+            showNotification('MORPHING — HOLD ON');
+            return;
+        }
+        S.colorsDirty = true;
+        S.formDirty = true;
+        render.updateParticles();
+        showNotification('FIELD RETRIGGERED');
+    });
+
     // --- Audio ---
     document.getElementById('btn-audio-mic')?.addEventListener('click', startMic);
     document.getElementById('btn-audio-system')?.addEventListener('click', startSystemAudio);

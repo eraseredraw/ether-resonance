@@ -27,6 +27,19 @@ jobs:
       - name: Render golden frame (software WebGL)
         run: node scripts/golden.mjs
 
+      - name: Live check — form knobs apply while paused, Retrigger fires
+        run: node scripts/live-retrigger-check.mjs
+        env:
+          LIVE_OUT_DIR: ${{ runner.temp }}
+
+      - name: Upload live-check frames
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-retrigger-frames
+          path: ${{ runner.temp }}/rt-*.png
+          if-no-files-found: ignore
+
       - name: Upload rendered frame and diff
         if: always()
         uses: actions/upload-artifact@v7

@@ -37,6 +37,10 @@ jobs:
           node --check src/shaders.js
           node --check src/drawing.js
           node --check src/exporters.js
+          node --check src/state.js
+          node --check src/ui.js
+          node --check src/render.js
+          node --check src/camera.js
 
       - name: Install dependencies
         run: npm ci

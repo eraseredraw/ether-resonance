@@ -68,15 +68,26 @@ function syncParticleCountLabel() {
     document.getElementById('particle-count').textContent = n.toLocaleString();
 }
 
-function syncMoireRows() {
-    const on = S.currentShape === 'moire';
+function syncMoireRows(targetShape) {
+    const shape = targetShape || S.currentShape;
+    const on = shape === 'moire';
     document.querySelectorAll('.moire-only').forEach(row => {
         row.classList.toggle('on', on);
     });
-    const pitchOn = PITCH_SHAPES.includes(S.currentShape);
+    const pitchOn = PITCH_SHAPES.includes(shape);
     document.querySelectorAll('.pitch-only').forEach(row => {
         row.classList.toggle('on', pitchOn);
     });
+}
+
+// Form knobs mutate S only. The frame loop is what pushes S into the position
+// buffer, and it is gated on `!S.isPaused` — so a knob turned while the
+// simulation was frozen did nothing at all (the workaround was to change
+// particle count or colour, whose handlers call the writer directly). Flag the
+// field dirty instead of writing from here: the loop spends exactly one extra
+// frame on it, and a drag at 500K does not pay 60 rewrites per second.
+function applyFormChange() {
+    S.formDirty = true;
 }
 
 function setAudioStatus(text, cls) {
@@ -759,43 +770,51 @@ function setupEventListeners() {
     document.getElementById('shape-select').addEventListener('change', e => {
         render.morphToShape(e.target.value, 1.0);
         updateHudFormName();
-        syncMoireRows();
+        syncMoireRows(e.target.value);
+        applyFormChange();
     });
 
     document.getElementById('form-scale').addEventListener('input', e => {
         S.formScale = parseInt(e.target.value);
         document.getElementById('form-scale-value').textContent = e.target.value;
+        applyFormChange();
     });
 
     document.getElementById('form-rotation').addEventListener('input', e => {
         S.formRotationSpeed = parseFloat(e.target.value);
         document.getElementById('form-rotation-value').textContent = e.target.value;
+        applyFormChange();
     });
 
     document.getElementById('form-chaos').addEventListener('input', e => {
         S.formChaos = parseInt(e.target.value);
         document.getElementById('form-chaos-value').textContent = e.target.value;
+        applyFormChange();
     });
 
     // --- Moiré bench (visible only for the 'moire' shape) ---
     document.getElementById('moire-layers').addEventListener('input', e => {
         S.moireLayers = parseInt(e.target.value);
         document.getElementById('moire-layers-value').textContent = e.target.value;
+        applyFormChange();
     });
 
     document.getElementById('moire-twist').addEventListener('input', e => {
         S.moireTwistDeg = parseFloat(e.target.value);
         document.getElementById('moire-twist-value').textContent = e.target.value;
+        applyFormChange();
     });
 
     document.getElementById('moire-gap').addEventListener('input', e => {
         S.moireGap = parseFloat(e.target.value);
         document.getElementById('moire-gap-value').textContent = S.moireGap.toFixed(2);
+        applyFormChange();
     });
 
     document.getElementById('form-pitch').addEventListener('input', e => {
         S.formPitch = parseFloat(e.target.value);
         document.getElementById('form-pitch-value').textContent = S.formPitch.toFixed(2);
+        applyFormChange();
     });
 
     // --- Color ---
@@ -1063,8 +1082,13 @@ function setForm(shape) {
     if (shape !== S.currentShape) {
         render.morphToShape(shape, 1.0);
     }
+    // morphToShape commits S.currentShape when the interpolation lands, so
+    // don't assign it here — rows switch to the target immediately so the
+    // knobs you're about to reach for are already visible.
     document.getElementById('shape-select').value = shape;
     updateHudFormName();
+    syncMoireRows(shape);
+    applyFormChange();
 }
 
 function setAspectRatio(ratio) {

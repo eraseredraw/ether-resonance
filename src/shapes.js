@@ -167,10 +167,15 @@ export function writeShapePosition(i, t, time, out, o) {
         }
         case 'cube': {
             const cubeSize = scale * 2 * formPitch;
-            const cubeSide = Math.round(Math.cbrt(t));
-            const ix = i % cubeSide;
-            const iy = Math.floor(i / cubeSide) % cubeSide;
-            const iz = Math.floor(i / (cubeSide * cubeSide));
+            const cubeSide = Math.max(6, Math.round(Math.cbrt(t)));
+            const cubeCell = cubeSide * cubeSide * cubeSide;
+            // The tail beyond side³ wraps instead of stacking extra z-slices:
+            // duplicate points coincide (invisible), the box keeps its
+            // proportions at ANY particle count.
+            const ci = i % cubeCell;
+            const ix = ci % cubeSide;
+            const iy = Math.floor(ci / cubeSide) % cubeSide;
+            const iz = Math.floor(ci / (cubeSide * cubeSide));
             const nx = ((ix + 0.5) / cubeSide) * 2 - 1;
             const ny = ((iy + 0.5) / cubeSide) * 2 - 1;
             const nz = ((iz + 0.5) / cubeSide) * 2 - 1;

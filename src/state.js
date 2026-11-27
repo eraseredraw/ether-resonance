@@ -50,6 +50,10 @@ export const S = {
     // Lattice pitch: distance between neighbouring points (grid forms)
     formPitch: 1,
 
+    // Set by any form knob, consumed by the frame loop so a paused field
+    // still re-evaluates once (see render.animate)
+    formDirty: false,
+
     // Photo mode: particles spell an image instead of a shape (opt-in)
     photoMode: false,
 

@@ -306,6 +306,10 @@ function updateParticles() {
     // Fixed bounding sphere (radius covers shape + offsets + chaos worst case)
     boundSphere.radius = S.formScale * 4 + 50;
     geometry.boundingSphere = boundSphere;
+
+    // The field now reflects S: a paused frame that was waiting on a knob
+    // has caught up.
+    S.formDirty = false;
 }
 
 // ============================================
@@ -886,7 +890,10 @@ function animate() {
     if (geometry && geometry.attributes && geometry.attributes.position) {
         if (S.isMorphing) {
             advanceMorph(dt);
-        } else if (!S.isPaused) {
+        } else if (!S.isPaused || S.formDirty) {
+            // Paused normally means "don't move", but a knob the user just
+            // turned is an explicit request to re-evaluate the field once —
+            // otherwise every form control looks dead on a frozen frame.
             updateParticles();
         }
     }

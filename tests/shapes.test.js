@@ -387,6 +387,29 @@ describe('pointer interaction', () => {
         expect(rOut[ro + 2]).toBeCloseTo(bz + (tz - bz) * so, 2);
     });
 
+    it('cube stays proportional at any particle count (tail wraps, no z-plate)', () => {
+        // 500000 is not a perfect cube: round(cbrt)=79 → 493039 cells, so
+        // 6961 particles overflow. Wrapping them keeps the box a box; stacking
+        // them as extra z-slices is what produced the non-proportional slab.
+        for (const count of [500000, 150000, 40000, 20000]) {
+            setMouseState(-9999, -9999, 0);
+            setFormScaleMod(1);
+            setShapeState({ currentShape: 'cube', formScale: 150, formRotationSpeed: 0,
+                formChaos: 0, formPitch: 1 });
+            const out = new Float32Array(count * 3);
+            for (let i = 0; i < count; i++) writeShapePosition(i, count, 0, out, i * 3);
+            const ext = [0, 0, 0];
+            const zs = new Set();
+            for (let i = 0; i < count; i++) {
+                for (let k = 0; k < 3; k++) ext[k] = Math.max(ext[k], Math.abs(out[i * 3 + k]));
+                zs.add(out[i * 3 + 2].toFixed(4));
+            }
+            const ratio = Math.max(...ext) / Math.min(...ext);
+            expect(ratio).toBeLessThan(1.001);
+            expect(zs.size).toBe(Math.round(Math.cbrt(count)));
+        }
+    }, 60000);
+
     it('500K particles stay finite and bounded (cache makes the cap affordable)', () => {
         const count = 500000;
         setMouseState(-9999, -9999, 0);

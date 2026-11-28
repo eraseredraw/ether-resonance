@@ -253,9 +253,14 @@ try {
   const panelState = () => page.evaluate(() =>
     document.getElementById('controls').classList.contains('hidden'));
   const setPanel = async (wantOpen) => {
-    if ((await panelState()) === wantOpen) return false;   // already there
+    // panelState() reports the 'hidden' CLASS, so it is the inverse of
+    // wantOpen: click only when hidden === wantOpen. First version compared
+    // them directly and therefore never clicked to open, and never clicked to
+    // close either — both measurements then described the wrong state.
+    const hidden = await panelState();
+    if (hidden === !wantOpen) return false;                // already there
     await click('controls-toggle');
-    await new Promise(r => setTimeout(r, 500));            // transition 0.35s
+    await new Promise(r => setTimeout(r, 600));            // transition 0.35s
     return true;
   };
 
@@ -275,6 +280,10 @@ try {
       painted: st.display !== 'none' && st.visibility !== 'hidden'
         && r.width > 0 && r.height > 0,
       topmost: hit === b || b.contains(hit),
+      // если не topmost — это не «тест кривой», а «кто-то лежит поверх
+      // кнопки»: печать перекрывающего элемента превращает провал в диагноз
+      blocker: hit ? (hit.id || hit.tagName.toLowerCase()
+        + (hit.className ? '.' + String(hit.className).trim().split(/\s+/).join('.') : '')) : null,
       floating: st.position === 'fixed',
       inViewport: r.top >= 0 && r.bottom <= window.innerHeight,
     };

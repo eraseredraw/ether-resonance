@@ -213,56 +213,104 @@ button {
 #drawing-pad-toggle:active { transform: translateX(-50%) translateY(1px); }
 
 /* ============================================
-   RETRIGGER — floating escape hatch
+   VIRTUAL CAMERA JOYSTICK
    ============================================
-   Always reachable, never buried in the control panel (which is a bottom
-   sheet on mobile and needs scrolling to reach the colour section). It parks
-   in the top-right corner under the ☰ toggle; when the HUD panel is open it
-   steps below that panel, and the offset is measured from the panel's real
-   height rather than guessed — see syncRetriggerPos() in ui.js. Amber, because
-   every other chrome element here is deliberately grey: this one is a button
-   you reach for when the machine is not behaving. */
-#btn-retrigger {
+   Opt-in overlay: hidden until the Joystick checkbox is on. Bottom-left, the
+   one corner the control panel (top-left on desktop) and the drawing-pad
+   toggle (bottom-centre) both leave free. --joy-bottom is set by place() in
+   joystick.js when the mobile bottom sheet covers that corner. */
+#joystick {
     position: fixed;
-    z-index: 102;
-    top: var(--retrigger-top, calc(var(--sp-3) + 54px));
-    right: var(--sp-3);
-    height: 42px;
-    min-width: 0;
-    flex: none;
-    padding: 0 var(--sp-4);
-    display: flex;
+    z-index: 103;
+    left: var(--sp-3);
+    bottom: var(--joy-bottom, var(--sp-3));
+    display: none;
     align-items: center;
-    justify-content: center;
     gap: var(--sp-2);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+
+#joystick.on {
+    display: flex;
+}
+
+.joy-base {
+    position: relative;
+    width: 108px;
+    height: 108px;
+    border-radius: 50%;
     background: var(--surface);
-    border: 1px solid rgba(255, 179, 71, 0.42);
-    border-radius: var(--radius-sm);
-    color: #ffb347;
-    font-size: 10px;
+    border: 1px solid var(--border);
     backdrop-filter: blur(12px) saturate(140%);
     -webkit-backdrop-filter: blur(12px) saturate(140%);
     box-shadow: var(--shadow-panel);
-    transition: top 0.35s cubic-bezier(0.4, 0, 0.2, 1), background 0.18s ease,
-        color 0.18s ease, border-color 0.18s ease;
 }
 
-#btn-retrigger:hover {
-    background: rgba(255, 179, 71, 0.14);
-    border-color: #ffb347;
-    color: #ffd79a;
+.joy-knob {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 46px;
+    height: 46px;
+    margin: -23px 0 0 -23px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-strong);
+    transition: background 0.15s ease;
 }
 
-#btn-retrigger:active { transform: translateY(1px); }
+#joystick:active .joy-knob {
+    background: rgba(122, 162, 247, 0.22);
+    border-color: var(--accent);
+}
 
-/* Mobile: the panel is a bottom sheet, so nothing competes with the corner;
-   shrink the label so it cannot collide with the HUD on a narrow screen. */
+.joy-triggers {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+.joy-trigger {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    min-width: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-dim);
+    font-size: 17px;
+    line-height: 1;
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    box-shadow: var(--shadow-panel);
+}
+
+.joy-trigger.armed {
+    color: var(--text);
+    border-color: var(--accent);
+    background: rgba(122, 162, 247, 0.18);
+}
+
+/* Sensitivity slider: collapsed until the stick is on screen */
+.control-row.joy-only {
+    display: none;
+}
+
+.control-row.joy-only.on {
+    display: flex;
+}
+
 @media (max-width: 480px) {
-    #btn-retrigger {
-        padding: 0 var(--sp-3);
-        font-size: 9px;
-        letter-spacing: 0.6px;
-    }
+    .joy-base { width: 92px; height: 92px; }
+    .joy-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+    .joy-trigger { width: 38px; height: 38px; }
 }
 
 /* ============================================

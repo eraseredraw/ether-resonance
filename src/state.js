@@ -54,6 +54,11 @@ export const S = {
     // still re-evaluates once (see render.animate)
     formDirty: false,
 
+    // Virtual camera stick: visibility is opt-in (it covers the canvas corner),
+    // sensitivity multiplies both orbit and zoom speed
+    joystickEnabled: false,
+    joystickSensitivity: 1.0,
+
     // Photo mode: particles spell an image instead of a shape (opt-in)
     photoMode: false,
 
@@ -133,7 +138,9 @@ export const DEFAULT_CONFIG = {
     asciiScale: 1.0,
     asciiSet: 0,
     asciiRate: 2,
-    pointerFxEnabled: false
+    pointerFxEnabled: false,
+    joystickEnabled: false,
+    joystickSensitivity: 1.0,
 };
 
 export function collectConfig() {
@@ -164,7 +171,9 @@ export function collectConfig() {
         asciiScale: S.asciiScale,
         asciiSet: S.asciiSet,
         asciiRate: S.asciiRate,
-        pointerFxEnabled: S.pointerFxEnabled
+        pointerFxEnabled: S.pointerFxEnabled,
+        joystickEnabled: S.joystickEnabled,
+        joystickSensitivity: S.joystickSensitivity
     };
 }
 

@@ -42,11 +42,6 @@
     <!-- HUD Toggle Button -->
     <button id="hud-toggle" title="Toggle HUD (Tab)">☰</button>
 
-    <!-- Escape hatch: force one full re-evaluation of the field. Fixed to the
-         viewport so it is reachable without opening the control panel, which
-         on mobile is a bottom sheet you would have to scroll. -->
-    <button id="btn-retrigger" title="Force a full re-evaluation of the field: applies every pending knob and colour right now, even while paused">⚡ Retrigger</button>
-
     <!-- HUD (скрыт по умолчанию) -->
     <div id="hud" class="hidden">
         <h1>🧬 ETHER RESONANCE <span class="author">Alexey S. | @crwnshnss</span></h1>
@@ -223,6 +218,9 @@
                     <option value="neon">💡 Neon</option>
                     <option value="white">⚪ White</option>
                 </select>
+            </div>
+            <div class="btn-row">
+                <button id="btn-retrigger" title="Force a full re-evaluation of the field: applies every pending knob and colour right now, even while paused">⚡ Retrigger</button>
             </div>
             <div class="control-row">
                 <label>Hue Offset</label>
@@ -407,6 +405,15 @@
             <div class="control-row">
                 <label>RGB Shift</label>
                 <input type="checkbox" id="aberration-toggle">
+            </div>
+            <div class="control-row">
+                <label>Joystick</label>
+                <input type="checkbox" id="joystick-toggle">
+            </div>
+            <div class="control-row joy-only">
+                <label>Joy Speed</label>
+                <input type="range" id="joystick-sens" min="0.2" max="3" step="0.1" value="1">
+                <span class="value" id="joystick-sens-value">1.0</span>
             </div>
             <div class="control-row">
                 <label>ASCII</label>

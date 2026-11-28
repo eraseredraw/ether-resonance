@@ -54,6 +54,14 @@ function updateHudFormName() {
 
 // The moiré bench knobs only mean anything for the 'moire' shape; the pitch
 // knob applies to every lattice form. Hide what isn't wired to anything.
+// The sensitivity slider only means anything while the stick is on screen, so
+// it collapses with it (same honesty rule as the moiré and pitch rows).
+function syncJoystickRows() {
+    document.querySelectorAll('.joy-only').forEach(row => {
+        row.classList.toggle('on', S.joystickEnabled);
+    });
+}
+
 const PITCH_SHAPES = ['cube', 'plane', 'moire', 'tesseract', 'ruled'];
 
 // Particle count label: K up to 999K, then M. Amber above 200K because that
@@ -144,31 +152,15 @@ function updateUIFromState() {
     document.getElementById('ascii-rate').value = S.asciiRate;
     document.getElementById('ascii-rate-value').textContent = S.asciiRate.toFixed(1);
     document.getElementById('pointerfx-toggle').checked = S.pointerFxEnabled;
+    document.getElementById('joystick-toggle').checked = S.joystickEnabled;
+    document.getElementById('joystick-sens').value = S.joystickSensitivity;
+    document.getElementById('joystick-sens-value').textContent = S.joystickSensitivity.toFixed(1);
+    syncJoystickRows();
     updateHudFormName();
 }
 
 function toggleHUD() {
     document.getElementById('hud').classList.toggle('hidden');
-    syncRetriggerPos();
-}
-
-// The floating Retrigger button sits in the top-right corner under the ☰
-// toggle. When the HUD panel is open it has to step below that panel instead
-// of covering its title, and the panel's height is not knowable ahead of time
-// (stats block, author line, calibration row all come and go), so the offset
-// is measured rather than guessed. Clamped at both ends: never above the ☰
-// toggle, never below the fold on a short viewport.
-function syncRetriggerPos() {
-    const btn = document.getElementById('btn-retrigger');
-    const hud = document.getElementById('hud');
-    if (!btn || !hud) return;
-    if (hud.classList.contains('hidden')) {
-        btn.style.removeProperty('--retrigger-top');
-        return;
-    }
-    const bottom = hud.getBoundingClientRect().bottom;
-    const top = Math.max(66, Math.min(bottom + 12, window.innerHeight - 54));
-    btn.style.setProperty('--retrigger-top', top + 'px');
 }
 
 function toggleControls() {
@@ -497,6 +489,8 @@ function writeConfigToState(cfg) {
     if (typeof cfg.asciiSet === 'number') S.asciiSet = Math.max(0, Math.round(cfg.asciiSet));
     if (typeof cfg.asciiRate === 'number') S.asciiRate = Math.min(20, Math.max(0, cfg.asciiRate));
     if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
+    if (typeof cfg.joystickEnabled === 'boolean') S.joystickEnabled = cfg.joystickEnabled;
+    if (typeof cfg.joystickSensitivity === 'number') S.joystickSensitivity = cfg.joystickSensitivity;
     return countChanged;
 }
 
@@ -940,6 +934,19 @@ function setupEventListeners() {
     document.getElementById('ascii-set').addEventListener('change', e => {
         render.setAsciiSet(parseInt(e.target.value, 10) || 0);
     });
+    document.getElementById('joystick-toggle').addEventListener('change', e => {
+        S.joystickEnabled = e.target.checked;
+        render.setJoystickEnabled(S.joystickEnabled);
+        syncJoystickRows();
+    });
+
+    document.getElementById('joystick-sens').addEventListener('input', e => {
+        S.joystickSensitivity = parseFloat(e.target.value);
+        render.setJoystickSensitivity(S.joystickSensitivity);
+        document.getElementById('joystick-sens-value').textContent =
+            S.joystickSensitivity.toFixed(1);
+    });
+
     document.getElementById('ascii-rate').addEventListener('input', e => {
         render.setAsciiRate(parseFloat(e.target.value));
         document.getElementById('ascii-rate-value').textContent = e.target.value;
@@ -1067,12 +1074,6 @@ function setupEventListeners() {
             render.resetCamera();
         }
     });
-
-    // --- Floating Retrigger placement ---
-    // Font loading and viewport changes both move the HUD panel's bottom edge,
-    // so the offset is recalculated rather than set once at boot.
-    window.addEventListener('resize', syncRetriggerPos);
-    document.fonts?.ready?.then(syncRetriggerPos);
 }
 
 function setupDragAndDrop() {

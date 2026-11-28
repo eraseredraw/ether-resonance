@@ -41,6 +41,7 @@ jobs:
           node --check src/ui.js
           node --check src/render.js
           node --check src/camera.js
+          node --check src/joystick.js
 
       - name: Install dependencies
         run: npm ci

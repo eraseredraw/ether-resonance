@@ -14,6 +14,12 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import {
+    createJoystick,
+    update as updateJoystick,
+    setJoystickVisible,
+    disposeJoystick,
+} from './joystick.js';
 
 import {
     SHAPES,
@@ -227,6 +233,14 @@ function initScene() {
         ONE: THREE.TOUCH.ROTATE,
         TWO: THREE.TOUCH.DOLLY_PAN
     };
+
+    // Virtual stick. It writes camera.position the same way a drag does, so it
+    // composes with OrbitControls instead of replacing it; touching it cancels
+    // an in-flight camera-preset glide, exactly like grabbing the canvas would.
+    createJoystick({
+        onInteract: () => { camTarget = null; },
+    });
+    setJoystickVisible(S.joystickEnabled);
 }
 
 // ============================================
@@ -758,6 +772,15 @@ function setRotateSpeed(n) {
     if (controls) controls.autoRotateSpeed = S.rotateSpeed;
 }
 
+function setJoystickEnabled(b) {
+    S.joystickEnabled = !!b;
+    setJoystickVisible(S.joystickEnabled);
+}
+
+function setJoystickSensitivity(n) {
+    S.joystickSensitivity = Math.min(3, Math.max(0.2, n || 1));
+}
+
 function getRenderContext() {
     return { renderer, composer, camera };
 }
@@ -839,6 +862,8 @@ function applyConfigRender(countChanged) {
         controls.autoRotate = S.autoRotate;
         controls.autoRotateSpeed = S.rotateSpeed;
     }
+    setJoystickVisible(S.joystickEnabled);
+    setJoystickSensitivity(S.joystickSensitivity);
 
     if (countChanged) {
         rebuildParticles();
@@ -941,6 +966,13 @@ function animate() {
         }
     }
 
+    // Virtual stick (writes the camera, then Controls reconciles below)
+    if (controls) {
+        const joy = updateJoystick(camera, controls, S.joystickSensitivity, dt,
+            S.targetZoomDistance);
+        if (joy && joy.zoom !== null) S.targetZoomDistance = joy.zoom;
+    }
+
     // Controls
     if (controls) {
         controls.update();
@@ -1004,6 +1036,8 @@ export {
     setBloomIntensity,
     setAutoRotate,
     setRotateSpeed,
+    setJoystickEnabled,
+    setJoystickSensitivity,
     loadModelOffsetSource,
     applyConfigRender
 };

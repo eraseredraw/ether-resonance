@@ -37,7 +37,8 @@ asserted without a GPU. See *Roadmap* for the golden-frame idea.
 - 13 parametric shapes with smooth ease-in-out morphing (sphere, torus, helix, ribbon, vortex, chaos…)
 - Interference forms: **Moiré Bench** (N parallel lattices, adjustable layer count / twist / gap / pitch), **Tesseract** (real 4D rotation in XW and YW, w-perspective projection), **Ruled** (straight threads whose envelope draws a curved waist — the surface is reconstructed by the eye, never drawn)
 - **Lattice Pitch** — distance between neighbouring points, decoupled from point count, on every grid form
-- **Retrigger** — floating ⚡ button in the top-right corner: forces one full re-evaluation of the field on demand, so a knob turned while the simulation is paused can never sit unapplied
+- **Retrigger** — ⚡ button beside the colour-mode selector: forces one full re-evaluation of the field on demand, so a knob turned while the simulation is paused can never sit unapplied
+- **Virtual camera joystick** — opt-in on-screen stick (checkbox `Joystick`, slider `Joy Speed`): thumb-size-independent orbit with a radial deadzone, plus two hold-to-dolly triggers; it writes the camera the same way a drag does, so OrbitControls, damping and auto-rotate all keep composing with it
 - **ASCII pass** — post-process glyph renderer: cell size 0.30–3.0 (a 40px mipmapped glyph atlas keeps characters legible down to ~5px cells), per-set flicker rate, and whole caption rows that occasionally replace a grid row
 - Per-frame trig caches: layer/thread geometry computed once per frame, not once per particle (what makes 500K affordable)
 - 10 color modes + hue offset + 5 animation modes (static, scroll, wave, pulse, matrix)

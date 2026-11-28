@@ -12,10 +12,13 @@
 // pixels even on a paused field, so idempotence is judged against measurement
 // rather than against zero.
 //
-// A placement pass then checks the button is discoverable: painted, in the
-// upper-right quadrant, topmost at its own centre (nothing overlapping), both
-// with the HUD panel closed and open — and that opening the HUD steps it down
-// instead of leaving it underneath. It runs last so it cannot perturb pixels.
+// A placement pass then checks the Retrigger button really lives inside the
+// control panel next to the colour mode (it was floated to a screen corner and
+// pulled back, so this pins the agreed placement): a child of #controls,
+// painted, topmost at its own centre, and NOT hit-testable once the panel is
+// collapsed. A joystick pass then toggles the virtual stick on, drags its knob
+// and holds its zoom trigger, requiring each to move a PAUSED canvas, and
+// finally requires it to disappear again.
 //
 // An ASCII pass then enables the glyph renderer and shoots the cell-size
 // extremes (E at 1.0, F at the slider floor): the density must visibly change
@@ -176,54 +179,6 @@ try {
   const noise = diffPct(C, D);
   const retriggerDrift = diffPct(B, C);
 
-  // Discoverability, measured after every pixel comparison so it cannot
-  // perturb them. The button used to live inside the control panel — a bottom
-  // sheet on mobile — and the user could not find it twice. So assert it is
-  // painted, in the upper-right quadrant, and is the TOPMOST element at its own
-  // centre (nothing overlapping it), with the HUD closed and again with it open.
-  const place = () => page.evaluate(() => {
-    const b = document.getElementById('btn-retrigger');
-    const r = b.getBoundingClientRect();
-    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    const st = getComputedStyle(b);
-    return {
-      top: Math.round(r.top),
-      fromRight: Math.round(window.innerWidth - r.right),
-      w: Math.round(r.width),
-      h: Math.round(r.height),
-      painted: st.display !== 'none' && st.visibility !== 'hidden' && r.width > 0 && r.height > 0,
-      topmost: hit === b || b.contains(hit),
-      vh: window.innerHeight,
-      vw: window.innerWidth,
-    };
-  });
-
-  const closed = await place();
-  await click('hud-toggle');                       // open the HUD panel
-  await new Promise(r => setTimeout(r, 700));      // let its transition settle
-  const open = await place();
-  await click('hud-toggle');                       // restore for the next run
-  await new Promise(r => setTimeout(r, 400));
-
-  const fmt = p => `top=${p.top} fromRight=${p.fromRight} ${p.w}x${p.h} ` +
-    `painted=${p.painted} topmost=${p.topmost}`;
-  console.log('placement (HUD closed):', fmt(closed));
-  console.log('placement (HUD open):  ', fmt(open));
-
-  // Two different bars, because the two states genuinely differ. Closed HUD is
-  // the normal case: the button must sit in the hard top-right corner. Open
-  // HUD means the panel occupies that corner legitimately, so the requirement
-  // becomes the same right-hand column, still above the fold, and not
-  // underneath the panel — which stepsDown asserts independently.
-  const cornerOk = (p, maxTopFrac) => p.painted && p.topmost
-    && p.top < p.vh * maxTopFrac && p.fromRight < p.vw * 0.35
-    && p.top < p.vh - 54;
-  const closedOk = cornerOk(closed, 0.4);
-  const openOk = cornerOk(open, 0.75);
-  // Opening the HUD must push the button down, not leave it underneath
-  const stepsDown = open.top > closed.top;
-  console.log(`corner checks: closed=${closedOk} open=${openOk} stepsDown=${stepsDown}`);
-
   // --- ASCII cell: the slider now reaches 0.3, so prove it renders ---
   // The atlas was doubled to 40px slots with mipmaps precisely so that a ~5px
   // cell stays a glyph instead of noise. Assert the observable consequences:
@@ -282,6 +237,118 @@ try {
     && Math.abs(parseFloat(asciiLabel) - asciiBounds.min) < 0.001
     && litE.mean > 12 && cellChange > 5 && litF.blackPct < 97;
 
+  // Discoverability, measured after every pixel comparison so it cannot
+  // perturb them. Retrigger now lives INSIDE the control panel (next to the
+  // colour mode selector), so the assertion is about the panel, not a screen
+  // corner: the button must be a child of #controls, painted, and reachable by
+  // hit-test at its own centre when the panel is open. It must also be gone
+  // from the layer stack when the panel is collapsed — a floating escape hatch
+  // was tried and rejected, so this pins the placement instead.
+  const place = () => page.evaluate(() => {
+    const b = document.getElementById('btn-retrigger');
+    if (!b) return { missing: true };
+    const r = b.getBoundingClientRect();
+    const st = getComputedStyle(b);
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return {
+      missing: false,
+      inPanel: !!b.closest('#controls'),
+      nearColor: !!b.closest('#controls')
+        && !!document.querySelector('#controls select#color-mode')
+        && Math.abs(r.top - document.querySelector('#color-mode').getBoundingClientRect().bottom) < 120,
+      painted: st.display !== 'none' && st.visibility !== 'hidden' && r.width > 0 && r.height > 0,
+      topmost: hit === b || b.contains(hit),
+      floating: st.position === 'fixed',
+    };
+  });
+
+  const inPanel = await place();
+  await click('controls-toggle');                    // collapse the panel
+  await new Promise(r => setTimeout(r, 600));
+  const collapsed = await page.evaluate(() => {
+    const p = document.getElementById('controls');
+    const b = document.getElementById('btn-retrigger');
+    const r = b.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return { hidden: p.classList.contains('hidden'), hitByButton: hit === b || b.contains(hit) };
+  });
+  await click('controls-toggle');                    // reopen for the next run
+  await new Promise(r => setTimeout(r, 600));
+
+  console.log('retrigger placement:', JSON.stringify(inPanel));
+  console.log('panel collapsed:', JSON.stringify(collapsed));
+
+  const placeOk = !inPanel.missing && inPanel.inPanel && inPanel.nearColor
+    && inPanel.painted && inPanel.topmost && !inPanel.floating
+    && collapsed.hidden && !collapsed.hitByButton;
+  console.log('placement checks:', JSON.stringify({ placeOk }));
+
+  // --- Virtual joystick: does it actually move the camera? ---
+  // Three things have to be true, and each one fails in a different way:
+  //   the stick appears when the toggle is on and disappears when it is off
+  //   pushing the knob orbits the camera (canvas changes while PAUSED, so
+  //     nothing else on screen is moving — any change is the camera)
+  //   holding a trigger dollies the camera (a zoom changes apparent size)
+  await click('joystick-toggle');
+  await new Promise(r => setTimeout(r, 500));
+  const joyOn = await page.evaluate(() => {
+    const el = document.getElementById('joystick');
+    return { exists: !!el, on: !!el && el.classList.contains('on'),
+      box: el ? (() => { const r = el.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height),
+          cx: Math.round(r.left + r.width * 0.13), cy: Math.round(r.top + r.height * 0.5) }; })() : null };
+  });
+  const J1 = await shot(page, 'rt-j1-stick-off');
+
+  // drag the knob sideways and hold: orbitStep runs on every frame
+  const drag = await page.evaluate(async (cx) => {
+    const el = document.getElementById('joystick');
+    const base = el.querySelector('.joy-base').getBoundingClientRect();
+    const px = (x, y) => ({ pointerId: 7, bubbles: true, cancelable: true, clientX: x, clientY: y });
+    el.dispatchEvent(new PointerEvent('pointerdown', px(base.left + base.width / 2, base.top + base.height / 2)));
+    el.dispatchEvent(new PointerEvent('pointermove', px(base.right + 40, base.top + base.height / 2)));
+    await new Promise(r => setTimeout(r, 700));      // ~42 frames of orbit
+    el.dispatchEvent(new PointerEvent('pointerup', px(base.right + 40, base.top + base.height / 2)));
+    return el.querySelector('.joy-knob').style.transform;
+  }, joyOn.box ? joyOn.box.cx : 0);
+  await new Promise(r => setTimeout(r, 400));
+  const J2 = await shot(page, 'rt-j2-stick-orbit');
+  const orbitDiff = diffPct(J1, J2);
+
+  // hold the zoom-in trigger: apparent size must change
+  const zoomed = await page.evaluate(async () => {
+    const btn = document.querySelector('.joy-trigger[data-dir="1"]');
+    const r = btn.getBoundingClientRect();
+    const p = (x, y) => ({ pointerId: 9, bubbles: true, cancelable: true, clientX: x, clientY: y });
+    btn.dispatchEvent(new PointerEvent('pointerdown', p(r.left + r.width / 2, r.top + r.height / 2)));
+    const armed = btn.classList.contains('armed');
+    await new Promise(r2 => setTimeout(r2, 900));
+    btn.dispatchEvent(new PointerEvent('pointerup', p(r.left + r.width / 2, r.top + r.height / 2)));
+    return { armed, released: !btn.classList.contains('armed') };
+  });
+  await new Promise(r => setTimeout(r, 400));
+  const J3 = await shot(page, 'rt-j3-stick-zoom');
+  const zoomDiff = diffPct(J2, J3);
+
+  // and it must all go away again
+  await click('joystick-toggle');
+  await new Promise(r => setTimeout(r, 400));
+  const joyOff = await page.evaluate(() => {
+    const el = document.getElementById('joystick');
+    return { on: !!el && el.classList.contains('on'),
+      display: el ? getComputedStyle(el).display : 'none' };
+  });
+
+  console.log('joystick visible:', JSON.stringify(joyOn), 'knob transform:', drag);
+  console.log('orbit changed paused canvas:', orbitDiff.toFixed(2) + '%');
+  console.log('zoom trigger:', JSON.stringify(zoomed), 'changed canvas:', zoomDiff.toFixed(2) + '%');
+  console.log('joystick hidden again:', JSON.stringify(joyOff));
+
+  const joyOk = joyOn.exists && joyOn.on && joyOn.box && joyOn.box.w > 60
+    && orbitDiff > 0.5 && zoomed.armed && zoomed.released && zoomDiff > 0.5
+    && !joyOff.on && joyOff.display === 'none';
+  console.log('joystick checks:', JSON.stringify({ joyOk }));
+
   console.log('knob-while-paused changed canvas: ', knobApplied.toFixed(2) + '%');
   console.log('noise floor (idle C→D):           ', noise.toFixed(2) + '%');
   console.log('retrigger drift (B→C, want ≈ noise):', retriggerDrift.toFixed(2) + '%');
@@ -294,10 +361,10 @@ try {
   const driftBudget = Math.max(1.0, noise * 4);
   const ok = knobApplied > 0.5 && retriggerDrift < driftBudget
     && errors.length === 0 && /RETRIGGERED/i.test(notif)
-    && closedOk && openOk && stepsDown && asciiOk;
+    && placeOk && asciiOk && joyOk;
   console.log('checks: knob=' + (knobApplied > 0.5) + ' idempotent=' + (retriggerDrift < driftBudget)
-    + ' notif=' + /RETRIGGERED/i.test(notif) + ' corner=' + (closedOk && openOk && stepsDown)
-    + ' ascii=' + asciiOk + ' errors=' + (errors.length === 0));
+    + ' notif=' + /RETRIGGERED/i.test(notif) + ' placement=' + placeOk
+    + ' ascii=' + asciiOk + ' joystick=' + joyOk + ' errors=' + (errors.length === 0));
   console.log(`drift budget: ${driftBudget.toFixed(2)}%  →  ${ok ? 'RESULT: PASS' : 'RESULT: FAIL'}`);
   process.exitCode = ok ? 0 : 1;
 } finally {

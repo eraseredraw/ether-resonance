@@ -235,6 +235,24 @@ try {
     const el = document.getElementById('ascii-scale');
     return { min: parseFloat(el.min), max: parseFloat(el.max), step: parseFloat(el.step) };
   });
+  // First measurement said nothing: diff 0.46%, mean luminance 1.0. Cause is
+  // the shader itself — gi = floor(lum * 10), so on a dark field almost every
+  // cell maps to slot 0, the emptiest glyph, and an ASCII pass over a dim scene
+  // is indistinguishable from no pass at all: the check would have been
+  // measuring black background. So the field is driven bright before comparing.
+  await page.evaluate(() => {
+    const knob = (id, value, evt) => {
+      const el = document.getElementById(id);
+      el.value = String(value);
+      el.dispatchEvent(new Event(evt, { bubbles: true }));
+    };
+    knob('particle-size', 5, 'input');      // max: fat particles, more lit px per cell
+    knob('form-scale', 300, 'input');       // biggest form, fills the frame
+    knob('bloom-intensity', 5, 'input');
+    knob('color-mode', 'white', 'change');  // achromatic, brightest set
+  });
+  await new Promise(r => setTimeout(r, 1500));   // let the dirty field rewrite
+
   await click('ascii-toggle');                      // ASCII on
   await new Promise(r => setTimeout(r, 900));
   const E = await shot(page, 'rt-e-ascii-100');
@@ -250,19 +268,19 @@ try {
     document.getElementById('ascii-scale-value').textContent.trim());
 
   const cellChange = diffPct(E, F);
-  const lit = pngLuminance(F);
+  const litE = pngLuminance(E), litF = pngLuminance(F);
   console.log('ascii bounds:', JSON.stringify(asciiBounds), '| label:', asciiLabel);
   console.log('ascii cell 1.0 -> floor re-densified grid:', cellChange.toFixed(2) + '%',
-    '| frame mean lum:', lit.mean.toFixed(1), '| black px:', lit.blackPct.toFixed(1) + '%');
+    '| mean lum E:', litE.mean.toFixed(1), 'F:', litF.mean.toFixed(1),
+    '| black px F:', litF.blackPct.toFixed(1) + '%');
 
-  // Thresholds are deliberately loose on brightness: an ASCII frame is mostly
-  // black background by construction, so this only has to rule out the total
-  // failure mode (atlas never uploaded → the pass renders an empty screen),
-  // not measure contrast.
+  // E must genuinely be lit or the comparison measures nothing (that is what
+  // the first run discovered). Beyond that the bars stay loose: they only have
+  // to rule out an empty pass, not grade contrast.
   const asciiOk = asciiBounds.min <= 0.3 && asciiBounds.min > 0
     && asciiBounds.step <= 0.05
     && Math.abs(parseFloat(asciiLabel) - asciiBounds.min) < 0.001
-    && cellChange > 5 && lit.mean > 3 && lit.blackPct < 97;
+    && litE.mean > 12 && cellChange > 5 && litF.blackPct < 97;
 
   console.log('knob-while-paused changed canvas: ', knobApplied.toFixed(2) + '%');
   console.log('noise floor (idle C→D):           ', noise.toFixed(2) + '%');

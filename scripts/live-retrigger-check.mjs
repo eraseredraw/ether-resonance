@@ -238,88 +238,113 @@ try {
     && litE.mean > 12 && cellChange > 5 && litF.blackPct < 97;
 
   // Discoverability, measured after every pixel comparison so it cannot
-  // perturb them. Retrigger now lives INSIDE the control panel (next to the
-  // colour mode selector), so the assertion is about the panel, not a screen
-  // corner: the button must be a child of #controls, painted, and reachable by
-  // hit-test at its own centre when the panel is open. It must also be gone
-  // from the layer stack when the panel is collapsed — a floating escape hatch
-  // was tried and rejected, so this pins the placement instead.
-  const place = () => page.evaluate(() => {
+  // perturb them. Retrigger lives INSIDE the control panel, beside the colour
+  // mode selector (it was floated to a screen corner and pulled back on
+  // request), so the assertions are about the panel, not a screen corner:
+  // a child of #controls, near the colour selector, painted, and actually
+  // hit-testable at its own centre once the panel is open and scrolled to it.
+  // Then: collapsed panel must stop answering to hit-tests.
+  //
+  // First attempt measured the wrong state twice: the panel boots COLLAPSED,
+  // so 'painted/topmost' was evaluated on an opacity-0 pointer-events-none
+  // subtree (always false), and my 'collapse' click actually EXPANDED it.
+  // Hence the explicit ensure-open / ensure-closed helpers below rather than
+  // assuming a starting state.
+  const panelState = () => page.evaluate(() =>
+    document.getElementById('controls').classList.contains('hidden'));
+  const setPanel = async (wantOpen) => {
+    if ((await panelState()) === wantOpen) return false;   // already there
+    await click('controls-toggle');
+    await new Promise(r => setTimeout(r, 500));            // transition 0.35s
+    return true;
+  };
+
+  const opened = await setPanel(true);
+  await page.evaluate(() => document.getElementById('btn-retrigger')
+    .scrollIntoView({ block: 'center' }));
+  await new Promise(r => setTimeout(r, 300));
+  const inPanel = await page.evaluate(() => {
     const b = document.getElementById('btn-retrigger');
-    if (!b) return { missing: true };
     const r = b.getBoundingClientRect();
     const st = getComputedStyle(b);
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    const cm = document.querySelector('#controls select#color-mode');
     return {
-      missing: false,
       inPanel: !!b.closest('#controls'),
-      nearColor: !!b.closest('#controls')
-        && !!document.querySelector('#controls select#color-mode')
-        && Math.abs(r.top - document.querySelector('#color-mode').getBoundingClientRect().bottom) < 120,
-      painted: st.display !== 'none' && st.visibility !== 'hidden' && r.width > 0 && r.height > 0,
+      nearColor: !!cm && Math.abs(r.top - cm.getBoundingClientRect().bottom) < 160,
+      painted: st.display !== 'none' && st.visibility !== 'hidden'
+        && r.width > 0 && r.height > 0,
       topmost: hit === b || b.contains(hit),
       floating: st.position === 'fixed',
+      inViewport: r.top >= 0 && r.bottom <= window.innerHeight,
     };
   });
 
-  const inPanel = await place();
-  await click('controls-toggle');                    // collapse the panel
-  await new Promise(r => setTimeout(r, 600));
+  const closed = await setPanel(false);
   const collapsed = await page.evaluate(() => {
     const p = document.getElementById('controls');
     const b = document.getElementById('btn-retrigger');
     const r = b.getBoundingClientRect();
     const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return { hidden: p.classList.contains('hidden'), hitByButton: hit === b || b.contains(hit) };
+    return { hidden: p.classList.contains('hidden'),
+      hitByButton: hit === b || b.contains(hit) };
   });
-  await click('controls-toggle');                    // reopen for the next run
-  await new Promise(r => setTimeout(r, 600));
 
+  console.log('panel was collapsed at boot:', opened);
   console.log('retrigger placement:', JSON.stringify(inPanel));
   console.log('panel collapsed:', JSON.stringify(collapsed));
 
-  const placeOk = !inPanel.missing && inPanel.inPanel && inPanel.nearColor
-    && inPanel.painted && inPanel.topmost && !inPanel.floating
+  const placeOk = inPanel.inPanel && inPanel.nearColor && inPanel.painted
+    && inPanel.topmost && inPanel.inViewport && !inPanel.floating
     && collapsed.hidden && !collapsed.hitByButton;
   console.log('placement checks:', JSON.stringify({ placeOk }));
 
   // --- Virtual joystick: does it actually move the camera? ---
-  // Three things have to be true, and each one fails in a different way:
-  //   the stick appears when the toggle is on and disappears when it is off
-  //   pushing the knob orbits the camera (canvas changes while PAUSED, so
-  //     nothing else on screen is moving — any change is the camera)
-  //   holding a trigger dollies the camera (a zoom changes apparent size)
+  // Three things have to be true, and each fails differently:
+  //   the stick appears when the toggle is on and vanishes when it is off
+  //   pushing the knob orbits the camera (the field is PAUSED here, so any
+  //     canvas change can only come from the camera, not from the particles)
+  //   holding a trigger dollies it (apparent size changes)
+  // The panel is left collapsed: the joystick is a viewport overlay, and this
+  // also proves it does not depend on the panel being open.
   await click('joystick-toggle');
   await new Promise(r => setTimeout(r, 500));
   const joyOn = await page.evaluate(() => {
     const el = document.getElementById('joystick');
-    return { exists: !!el, on: !!el && el.classList.contains('on'),
-      box: el ? (() => { const r = el.getBoundingClientRect();
-        return { w: Math.round(r.width), h: Math.round(r.height),
-          cx: Math.round(r.left + r.width * 0.13), cy: Math.round(r.top + r.height * 0.5) }; })() : null };
+    if (!el) return { exists: false };
+    const r = el.getBoundingClientRect();
+    return { exists: true, on: el.classList.contains('on'),
+      w: Math.round(r.width), h: Math.round(r.height),
+      inViewport: r.top >= 0 && r.left >= 0 && r.bottom <= window.innerHeight + 1 };
   });
   const J1 = await shot(page, 'rt-j1-stick-off');
 
   // drag the knob sideways and hold: orbitStep runs on every frame
-  const drag = await page.evaluate(async (cx) => {
+  await page.evaluate(async () => {
     const el = document.getElementById('joystick');
     const base = el.querySelector('.joy-base').getBoundingClientRect();
-    const px = (x, y) => ({ pointerId: 7, bubbles: true, cancelable: true, clientX: x, clientY: y });
-    el.dispatchEvent(new PointerEvent('pointerdown', px(base.left + base.width / 2, base.top + base.height / 2)));
-    el.dispatchEvent(new PointerEvent('pointermove', px(base.right + 40, base.top + base.height / 2)));
+    const px = (x, y) => ({ pointerId: 7, bubbles: true, cancelable: true,
+      clientX: x, clientY: y });
+    el.dispatchEvent(new PointerEvent('pointerdown',
+      px(base.left + base.width / 2, base.top + base.height / 2)));
+    el.dispatchEvent(new PointerEvent('pointermove',
+      px(base.left + base.width * 1.1, base.top + base.height / 2)));
     await new Promise(r => setTimeout(r, 700));      // ~42 frames of orbit
-    el.dispatchEvent(new PointerEvent('pointerup', px(base.right + 40, base.top + base.height / 2)));
-    return el.querySelector('.joy-knob').style.transform;
-  }, joyOn.box ? joyOn.box.cx : 0);
+    el.dispatchEvent(new PointerEvent('pointerup',
+      px(base.left + base.width * 1.1, base.top + base.height / 2)));
+  });
   await new Promise(r => setTimeout(r, 400));
   const J2 = await shot(page, 'rt-j2-stick-orbit');
+  const knobTransform = await page.evaluate(() =>
+    document.querySelector('.joy-knob').style.transform);
   const orbitDiff = diffPct(J1, J2);
 
   // hold the zoom-in trigger: apparent size must change
   const zoomed = await page.evaluate(async () => {
     const btn = document.querySelector('.joy-trigger[data-dir="1"]');
     const r = btn.getBoundingClientRect();
-    const p = (x, y) => ({ pointerId: 9, bubbles: true, cancelable: true, clientX: x, clientY: y });
+    const p = (x, y) => ({ pointerId: 9, bubbles: true, cancelable: true,
+      clientX: x, clientY: y });
     btn.dispatchEvent(new PointerEvent('pointerdown', p(r.left + r.width / 2, r.top + r.height / 2)));
     const armed = btn.classList.contains('armed');
     await new Promise(r2 => setTimeout(r2, 900));
@@ -339,13 +364,14 @@ try {
       display: el ? getComputedStyle(el).display : 'none' };
   });
 
-  console.log('joystick visible:', JSON.stringify(joyOn), 'knob transform:', drag);
+  console.log('joystick visible:', JSON.stringify(joyOn), '| knob after release:', knobTransform);
   console.log('orbit changed paused canvas:', orbitDiff.toFixed(2) + '%');
   console.log('zoom trigger:', JSON.stringify(zoomed), 'changed canvas:', zoomDiff.toFixed(2) + '%');
   console.log('joystick hidden again:', JSON.stringify(joyOff));
 
-  const joyOk = joyOn.exists && joyOn.on && joyOn.box && joyOn.box.w > 60
-    && orbitDiff > 0.5 && zoomed.armed && zoomed.released && zoomDiff > 0.5
+  const joyOk = joyOn.exists && joyOn.on && joyOn.w > 60 && joyOn.inViewport
+    && orbitDiff > 0.5 && knobTransform === 'translate(0px, 0px)'
+    && zoomed.armed && zoomed.released && zoomDiff > 0.5
     && !joyOff.on && joyOff.display === 'none';
   console.log('joystick checks:', JSON.stringify({ joyOk }));
 

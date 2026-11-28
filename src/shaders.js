@@ -133,6 +133,13 @@ export const ASCII_VARIANTS = 4;
 // fragments slip through the glyph field.
 export const ASCII_PHRASE_CELLS = 32;
 
+// Atlas slot resolution, in texture pixels. The shader maps one slot onto one
+// screen cell, so these numbers are pure sampling quality: the cell can be far
+// smaller than the slot (ASCII Cell slider below 1). 20px held up only down to
+// a ~11px cell; at 40px with mipmaps the glyph stays legible down to ~5px,
+// which is what lets the slider floor drop from 0.6 to 0.3.
+export const ASCII_ATLAS_SLOT = 40;
+
 // Public sets: symbols only. Word sets live in the git-ignored
 // src/ascii-words.js and are merged at runtime by mergeWordSets() —
 // the public deployment (Pages, no private file) silently runs these
@@ -179,7 +186,8 @@ export function mergeWordSets(wordSets) {
 // drawn so the shader can sample exactly one cell. Horizontal repeat wraps
 // the phrase across wide screens; empty sets get a 1-row blank atlas and
 // chance 0, so symbol sets never trigger the caption branch.
-export function buildPhraseAtlas(setIdx = 0, cellsW = ASCII_PHRASE_CELLS, cellW = 20, cellH = 20) {
+export function buildPhraseAtlas(setIdx = 0, cellsW = ASCII_PHRASE_CELLS,
+    cellW = ASCII_ATLAS_SLOT, cellH = ASCII_ATLAS_SLOT) {
     const set = ASCII_SETS[((setIdx % ASCII_SETS.length) + ASCII_SETS.length) % ASCII_SETS.length];
     const phrases = set.phrases || [];
     const rows = Math.max(1, phrases.length);
@@ -203,15 +211,16 @@ export function buildPhraseAtlas(setIdx = 0, cellsW = ASCII_PHRASE_CELLS, cellW 
         }
     }
     const tex = new THREE.CanvasTexture(c);
-    tex.minFilter = THREE.LinearFilter;
+    // See buildAsciiAtlas for why these two carry mipmaps.
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
+    tex.generateMipmaps = true;
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
     return { tex: tex, rows: rows, chance: phrases.length ? 0.22 : 0 };
 }
 
-export function buildAsciiAtlas(setIdx = 0, cellW = 20, cellH = 20) {
+export function buildAsciiAtlas(setIdx = 0, cellW = ASCII_ATLAS_SLOT, cellH = ASCII_ATLAS_SLOT) {
     const set = ASCII_SETS[((setIdx % ASCII_SETS.length) + ASCII_SETS.length) % ASCII_SETS.length];
     const c = document.createElement('canvas');
     c.width = cellW * ASCII_SLOT_COUNT;
@@ -228,17 +237,24 @@ export function buildAsciiAtlas(setIdx = 0, cellW = 20, cellH = 20) {
         for (let v = 0; v < ASCII_VARIANTS; v++) {
             const token = variants[v] !== undefined ? variants[v] : variants[variants.length - 1] || ' ';
             // squeeze longer tokens into the cell: shrink font by token length
+            // floor scales with cellH, not hardcoded: at 40px slots a fixed
+            // 6px would be a fifth of the cell and vanish in the mip chain
             const fs = token.length > 1
-                ? Math.max(6, Math.floor(baseFont / (token.length * 0.62)))
+                ? Math.max(Math.floor(cellH * 0.3), Math.floor(baseFont / (token.length * 0.62)))
                 : baseFont;
             g.font = 'bold ' + fs + 'px monospace';
             g.fillText(token, s * cellW + cellW / 2, v * cellH + cellH / 2 + 1);
         }
     }
     const tex = new THREE.CanvasTexture(c);
-    tex.minFilter = THREE.LinearFilter;
+    // Mipmapped minification is what makes a small cell readable: the slider
+    // can shrink a 40px slot to ~5px, and without a mip chain LinearFilter
+    // samples 2x2 texels of the glyph instead of averaging it, which tears the
+    // character into noise. WebGL1 cannot build mips for NPOT textures and
+    // falls back to the previous (aliased) look rather than failing.
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.NearestFilter;
-    tex.generateMipmaps = false;
+    tex.generateMipmaps = true;
     tex.wrapS = THREE.ClampToEdgeWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
     return tex;

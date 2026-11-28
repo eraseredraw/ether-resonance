@@ -683,9 +683,18 @@ function setParticleSize(n) {
 // ASCII cell size in DEVICE pixels (the uResolution uniform is the drawing
 // buffer, so DPR is already baked in). Base cell 18x22 keeps the monospace
 // glyph aspect; the slider scales both axes together.
+//
+// Floor 0.3 = a 5.4x6.6 device-px cell. Below ~4px no amount of atlas
+// resolution saves legibility — the glyph is fewer pixels than its own
+// strokes — so the slider stops there and clamps presets/URL configs too,
+// rather than letting a shared link render unreadable mush.
+const ASCII_SCALE_MIN = 0.3;
+const ASCII_SCALE_MAX = 3;
+
 function setAsciiScale(v) {
-    S.asciiScale = v;
-    if (asciiPass) asciiPass.uniforms.uCell.value.set(18 * v, 22 * v);
+    const s = Math.min(ASCII_SCALE_MAX, Math.max(ASCII_SCALE_MIN, v || 1));
+    S.asciiScale = s;
+    if (asciiPass) asciiPass.uniforms.uCell.value.set(18 * s, 22 * s);
 }
 
 // Switch the character set: rebuild the 10x4 atlas canvas (cheap, one-off)

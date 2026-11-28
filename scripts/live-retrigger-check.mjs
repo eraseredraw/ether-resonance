@@ -17,6 +17,11 @@
 // with the HUD panel closed and open — and that opening the HUD steps it down
 // instead of leaving it underneath. It runs last so it cannot perturb pixels.
 //
+// An ASCII pass then enables the glyph renderer and shoots the cell-size
+// extremes (E at 1.0, F at the slider floor): the density must visibly change
+// and the frame must not come out empty. That is what guards the 0.6 → 0.3
+// floor drop and the mipmapped atlas that makes it survivable.
+//
 // Runs headless Chrome against a throwaway static server on the repo tree,
 // same toolchain as scripts/golden.mjs. Frames land in the runner temp dir
 // (LIVE_OUT_DIR overrides) so CI can upload them on failure.
@@ -79,6 +84,22 @@ const shot = async (page, name) => {
   });
   fs.writeFileSync(path.join(OUT, `${name}.png`), buf);
   return PNG.sync.read(buf);
+};
+
+// Rec.709 luminance stats of one shot. Used as a sanity floor for the ASCII
+// pass: a texture that fails to upload renders black, and a black frame can
+// still differ from the baseline by a large percentage, so pixel-diff alone
+// would happily pass it.
+const pngLuminance = (img) => {
+  const d = img.data;
+  let sum = 0, black = 0;
+  const n = d.length / 4;
+  for (let i = 0; i < d.length; i += 4) {
+    const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    sum += l;
+    if (l < 4) black++;
+  }
+  return { mean: sum / n, blackPct: (100 * black) / n };
 };
 
 const diffPct = (a, b) => {
@@ -203,6 +224,46 @@ try {
   const stepsDown = open.top > closed.top;
   console.log(`corner checks: closed=${closedOk} open=${openOk} stepsDown=${stepsDown}`);
 
+  // --- ASCII cell: the slider now reaches 0.3, so prove it renders ---
+  // The atlas was doubled to 40px slots with mipmaps precisely so that a ~5px
+  // cell stays a glyph instead of noise. Assert the observable consequences:
+  // the floor is where we think it is, the label reports it back, shrinking the
+  // cell visibly re-densifies the grid, and the pass is still lit (a texture
+  // that fails to upload renders the frame black, which no pixel-diff alone
+  // would catch).
+  const asciiBounds = await page.evaluate(() => {
+    const el = document.getElementById('ascii-scale');
+    return { min: parseFloat(el.min), max: parseFloat(el.max), step: parseFloat(el.step) };
+  });
+  await click('ascii-toggle');                      // ASCII on
+  await new Promise(r => setTimeout(r, 900));
+  const E = await shot(page, 'rt-e-ascii-100');
+
+  await page.evaluate(() => {
+    const el = document.getElementById('ascii-scale');
+    el.value = el.min;                              // whatever the floor now is
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await new Promise(r => setTimeout(r, 900));
+  const F = await shot(page, 'rt-f-ascii-min');
+  const asciiLabel = await page.evaluate(() =>
+    document.getElementById('ascii-scale-value').textContent.trim());
+
+  const cellChange = diffPct(E, F);
+  const lit = pngLuminance(F);
+  console.log('ascii bounds:', JSON.stringify(asciiBounds), '| label:', asciiLabel);
+  console.log('ascii cell 1.0 -> floor re-densified grid:', cellChange.toFixed(2) + '%',
+    '| frame mean lum:', lit.mean.toFixed(1), '| black px:', lit.blackPct.toFixed(1) + '%');
+
+  // Thresholds are deliberately loose on brightness: an ASCII frame is mostly
+  // black background by construction, so this only has to rule out the total
+  // failure mode (atlas never uploaded → the pass renders an empty screen),
+  // not measure contrast.
+  const asciiOk = asciiBounds.min <= 0.3 && asciiBounds.min > 0
+    && asciiBounds.step <= 0.05
+    && Math.abs(parseFloat(asciiLabel) - asciiBounds.min) < 0.001
+    && cellChange > 5 && lit.mean > 3 && lit.blackPct < 97;
+
   console.log('knob-while-paused changed canvas: ', knobApplied.toFixed(2) + '%');
   console.log('noise floor (idle C→D):           ', noise.toFixed(2) + '%');
   console.log('retrigger drift (B→C, want ≈ noise):', retriggerDrift.toFixed(2) + '%');
@@ -215,7 +276,10 @@ try {
   const driftBudget = Math.max(1.0, noise * 4);
   const ok = knobApplied > 0.5 && retriggerDrift < driftBudget
     && errors.length === 0 && /RETRIGGERED/i.test(notif)
-    && closedOk && openOk && stepsDown;
+    && closedOk && openOk && stepsDown && asciiOk;
+  console.log('checks: knob=' + (knobApplied > 0.5) + ' idempotent=' + (retriggerDrift < driftBudget)
+    + ' notif=' + /RETRIGGERED/i.test(notif) + ' corner=' + (closedOk && openOk && stepsDown)
+    + ' ascii=' + asciiOk + ' errors=' + (errors.length === 0));
   console.log(`drift budget: ${driftBudget.toFixed(2)}%  →  ${ok ? 'RESULT: PASS' : 'RESULT: FAIL'}`);
   process.exitCode = ok ? 0 : 1;
 } finally {

@@ -139,7 +139,7 @@ function updateUIFromState() {
     document.getElementById('aberration-toggle').checked = S.aberrationEnabled;
     document.getElementById('ascii-toggle').checked = S.asciiEnabled;
     document.getElementById('ascii-scale').value = S.asciiScale;
-    document.getElementById('ascii-scale-value').textContent = S.asciiScale.toFixed(1);
+    document.getElementById('ascii-scale-value').textContent = S.asciiScale.toFixed(2);
     document.getElementById('ascii-set').value = String(Math.min(S.asciiSet, render.getAsciiSetNames().length - 1));
     document.getElementById('ascii-rate').value = S.asciiRate;
     document.getElementById('ascii-rate-value').textContent = S.asciiRate.toFixed(1);
@@ -490,7 +490,10 @@ function writeConfigToState(cfg) {
     if (typeof cfg.starfieldEnabled === 'boolean') S.starfieldEnabled = cfg.starfieldEnabled;
     if (typeof cfg.aberrationEnabled === 'boolean') S.aberrationEnabled = cfg.aberrationEnabled;
     if (typeof cfg.asciiEnabled === 'boolean') S.asciiEnabled = cfg.asciiEnabled;
-    if (typeof cfg.asciiScale === 'number' && cfg.asciiScale > 0) S.asciiScale = cfg.asciiScale;
+    // through render.setAsciiScale rather than assigning S directly: that is
+    // where the min/max clamp lives, so a URL or cloud preset cannot smuggle in
+    // a cell size the atlas cannot render legibly
+    if (typeof cfg.asciiScale === 'number' && cfg.asciiScale > 0) render.setAsciiScale(cfg.asciiScale);
     if (typeof cfg.asciiSet === 'number') S.asciiSet = Math.max(0, Math.round(cfg.asciiSet));
     if (typeof cfg.asciiRate === 'number') S.asciiRate = Math.min(20, Math.max(0, cfg.asciiRate));
     if (typeof cfg.pointerFxEnabled === 'boolean') S.pointerFxEnabled = cfg.pointerFxEnabled;
@@ -929,7 +932,9 @@ function setupEventListeners() {
     document.getElementById('ascii-toggle')?.addEventListener('change', e => render.setSceneToggle('ascii', e.target.checked));
     document.getElementById('ascii-scale').addEventListener('input', e => {
         render.setAsciiScale(parseFloat(e.target.value));
-        document.getElementById('ascii-scale-value').textContent = e.target.value;
+        // read back from S, not the input: setAsciiScale clamps, and the label
+        // must never show a value the shader is not using
+        document.getElementById('ascii-scale-value').textContent = S.asciiScale.toFixed(2);
     });
     rebuildAsciiSetOptions();
     document.getElementById('ascii-set').addEventListener('change', e => {
